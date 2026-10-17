@@ -351,3 +351,57 @@ export function accuracyLabel(pct: number): { label: string; color: string } {
   if (pct < 88) return { label: 'Good accuracy',       color: '#00f5d4' };
   return              { label: 'High accuracy',         color: '#00f5d4' };
 }
+
+// ── Plain-language readout generator ───────────────────────────────────────────
+export function generatePlainLanguageReadout(
+  baseline: RawVector,
+  live: RawVector,
+  deltas: FeatureDelta[],
+  score?: number
+): string[] {
+  const readouts: string[] = [];
+
+  // WPM analysis
+  const wpmDelta = live.wpm - baseline.wpm;
+  const wpmPct = Math.round((Math.abs(wpmDelta) / Math.max(1, baseline.wpm)) * 100);
+  if (wpmPct >= 15) {
+    readouts.push(`Typing speed is ${wpmPct}% ${wpmDelta > 0 ? 'faster' : 'slower'} than the enrolled baseline pattern (${Math.round(live.wpm)} WPM vs ${Math.round(baseline.wpm)} WPM).`);
+  }
+
+  // Hold time analysis
+  const holdDelta = Math.round(live.avgHoldTime - baseline.avgHoldTime);
+  if (Math.abs(holdDelta) >= 15) {
+    readouts.push(`Key hold dwell time is ${Math.abs(holdDelta)}ms ${holdDelta > 0 ? 'longer' : 'shorter'} than the owner's profile (${Math.round(live.avgHoldTime)}ms vs ${Math.round(baseline.avgHoldTime)}ms).`);
+  }
+
+  // Flight time analysis
+  const flightDelta = Math.round(live.avgFlightTime - baseline.avgFlightTime);
+  if (Math.abs(flightDelta) >= 20) {
+    readouts.push(`Inter-key transition intervals are ${Math.abs(flightDelta)}ms ${flightDelta > 0 ? 'slower' : 'faster'} than normal.`);
+  }
+
+  // Rhythm consistency (variance)
+  const flightVarDelta = live.flightTimeVariance - baseline.flightTimeVariance;
+  if (flightVarDelta > 20) {
+    readouts.push(`Keystroke cadence shows erratic flight variance (+${Math.round(flightVarDelta)}ms divergence), indicating an unfamiliar motor rhythm.`);
+  } else if (flightVarDelta < -15) {
+    readouts.push(`Flight cadence is unusually mechanical with unusually low variance.`);
+  }
+
+  // Overall harmony fallback if all features are close
+  if (readouts.length === 0) {
+    const scorePct = typeof score === 'number' ? Math.round(score * 100) : 95;
+    readouts.push(`Neuromuscular rhythm aligns seamlessly with the registered physical profile (${scorePct}% concordance across all 5 dimensions).`);
+  }
+
+  return readouts;
+}
+
+// ── Identity Signature ID & Vector Fingerprint ────────────────────────────────
+export function generateSignatureId(raw: RawVector): string {
+  // Deterministic 4-byte hash based on the 5 physical metrics
+  const seed = (raw.avgHoldTime * 31 + raw.avgFlightTime * 17 + raw.wpm * 43 + raw.holdTimeVariance * 19 + raw.flightTimeVariance * 23);
+  const hex = Math.abs(Math.sin(seed) * 10000000).toString(16).slice(0, 4).toUpperCase();
+  return `SIG-${hex}`;
+}
+

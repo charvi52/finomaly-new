@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IGNORED_KEYS,
   KeystrokeEvent,
@@ -10,8 +10,10 @@ import {
   accuracyLabel,
   wordCount,
   extractRawVector,
+  normaliseVector,
 } from './biometrics';
 import { enrollSessionApi } from '@/lib/apiClient';
+import PhysicalDigitalSplitView from './PhysicalDigitalSplitView';
 
 // ── 3 Baseline Passages ──────────────────────────────────────────────────────
 const BASELINE_PASSAGES = [
@@ -42,7 +44,14 @@ export default function BaselineSession({ onComplete }: Props) {
   const [lockStep, setLockStep] = useState(-1);
   const [locked, setLocked] = useState(false);
 
+  // Live telemetry state for the Physical vs Digital Split View
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [latestHoldMs, setLatestHoldMs] = useState<number | null>(null);
+  const [latestFlightMs, setLatestFlightMs] = useState<number | null>(null);
+  const [liveKeystrokes, setLiveKeystrokes] = useState<KeystrokeEvent[]>([]);
+
   const collectedVectorsRef = useRef<RawVector[]>([]);
+
 
   // Keystroke tracking refs
   const downMap = useRef(new Map<string, number>());
@@ -100,6 +109,10 @@ export default function BaselineSession({ onComplete }: Props) {
   const resetSessionRefs = () => {
     setTyped('');
     setHasBackspace(false);
+    setActiveKey(null);
+    setLatestHoldMs(null);
+    setLatestFlightMs(null);
+    setLiveKeystrokes([]);
     downMap.current.clear();
     keystrokesRef.current = [];
     flightsRef.current = [];
@@ -118,13 +131,16 @@ export default function BaselineSession({ onComplete }: Props) {
     const now = performance.now();
     if (!startTimeRef.current) startTimeRef.current = now;
     downMap.current.set(key, now);
+    setActiveKey(key);
 
     // Flight time: gap between last key-up and this key-down
     if (lastUpTimeRef.current !== null && lastKeyRef.current !== null) {
+      const flight = Math.max(1, now - lastUpTimeRef.current);
+      setLatestFlightMs(flight);
       flightsRef.current.push({
         fromKey: lastKeyRef.current,
         toKey: key,
-        flightTime: now - lastUpTimeRef.current,
+        flightTime: flight,
       });
     }
   }, []);
@@ -135,11 +151,20 @@ export default function BaselineSession({ onComplete }: Props) {
     const now = performance.now();
     const downTime = downMap.current.get(key);
     if (downTime !== undefined) {
-      keystrokesRef.current.push({ key, downTime, upTime: now, holdTime: now - downTime });
+      const hold = Math.max(1, now - downTime);
+      setLatestHoldMs(hold);
+      const stroke = { key, downTime, upTime: now, holdTime: hold };
+      keystrokesRef.current.push(stroke);
+      setLiveKeystrokes(prev => [...prev.slice(-20), stroke]);
       downMap.current.delete(key);
     }
     lastUpTimeRef.current = now;
     lastKeyRef.current = key;
+
+    // Reset active key highlight after quick flash
+    setTimeout(() => {
+      setActiveKey(prev => (prev === key ? null : prev));
+    }, 120);
   }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -277,15 +302,32 @@ export default function BaselineSession({ onComplete }: Props) {
     );
   }
 
+  // Live WPM calculation
+  const elapsedMins = startTimeRef.current ? Math.max(0.01, (performance.now() - startTimeRef.current) / 60000) : 0;
+  const liveWpm = elapsedMins > 0 ? (typed.length / 5) / elapsedMins : 0;
+
+  // Live 5D normalized vector
+  const liveNormVector = useMemo(() => {
+    if (keystrokesRef.current.length < 2) return null;
+    const totalMs = startTimeRef.current ? performance.now() - startTimeRef.current : 1000;
+    const raw = extractRawVector({
+      keystrokes: keystrokesRef.current,
+      flights: flightsRef.current,
+      totalDurationMs: totalMs,
+      charCount: typed.length,
+    });
+    return normaliseVector(raw);
+  }, [typed, liveKeystrokes]);
+
   // ── Accuracy ring SVG ────────────────────────────────────────────────────
   const R = 28;
   const circ = 2 * Math.PI * R;
   const ringOffset = circ - (accuracy / 100) * circ;
 
   return (
-    <div style={{ padding: '1.5rem' }} className="fade-in">
+    <div style={{ padding: '1.25rem' }} className="fade-in">
       {/* Session progress indicator */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid rgba(0,245,212,0.15)', paddingBottom: '0.625rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', borderBottom: '1px solid rgba(0,245,212,0.15)', paddingBottom: '0.5rem' }}>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.78rem', color: '#00f5d4', fontWeight: 600, letterSpacing: '0.04em' }}>
           SESSION {currentSessionIndex + 1} OF 3 — BASELINE ENROLLMENT
         </span>
@@ -306,8 +348,21 @@ export default function BaselineSession({ onComplete }: Props) {
         </div>
       </div>
 
+      {/* ── LIVE TRANSLATION & PHYSICAL VS DIGITAL SPLIT VIEW ── */}
+      <PhysicalDigitalSplitView
+        activeKey={activeKey}
+        keystrokes={liveKeystrokes}
+        latestHoldMs={latestHoldMs}
+        latestFlightMs={latestFlightMs}
+        wpm={liveWpm}
+        normVector={liveNormVector}
+        score={canSubmit ? accuracy : null}
+        scoreType="accuracy"
+        accentColor="#00f5d4"
+      />
+
       {/* Header info */}
-      <div style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: '0.85rem' }}>
         <p style={{ fontSize: '0.82rem', color: 'var(--muted-foreground)', margin: '0 0 0.375rem' }}>
           Type passage {currentSessionIndex + 1} naturally at your own pace:
         </p>

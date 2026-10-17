@@ -250,7 +250,7 @@ function Keyboard3D({ activeKey, accent }: { activeKey: string | null; accent: s
    TYPING SCENE (no person — just label + keyboard + telemetry readouts)
 ───────────────────────────────────────────────────────────────────────────── */
 function TypingScene({ label, accent, activeKey, data, zooming }: {
-  label: 'USER' | 'MULE';
+  label: 'USER' | 'CHALLENGER';
   accent: string;
   activeKey: string | null;
   data: typeof BL;
@@ -411,7 +411,7 @@ const baselineLines: MLine[] = [
 ];
 
 const muleLines: MLine[] = [
-  { tag: 'heading', label: '01 // LIVE SESSION CAPTURE — IMPOSTER' },
+  { tag: 'heading', label: '01 // LIVE SESSION CAPTURE — CHALLENGER / UNVERIFIED HUMAN' },
   { tag: 'calc',    label: 'WPM (typing speed)',        value: '87.0  wpm',  comment: '↑ +29 wpm vs baseline' },
   { tag: 'calc',    label: 'μ Hold Time',               value: '121.0 ms',   comment: '↓ −59 ms vs baseline' },
   { tag: 'calc',    label: 'μ Flight Time',             value: '94.0  ms',   comment: '↓ −44 ms vs baseline' },
@@ -518,10 +518,10 @@ function MathScreen({ lines, visible, accent, title }: {
 function ResultScreen({ type, onReplay, onClose }: { type: 'baseline' | 'mule'; onReplay?: () => void; onClose: () => void }) {
   const isBase = type === 'baseline';
   const accent = isBase ? '#00f5d4' : '#ff6b35';
-  const label  = isBase ? 'BASELINE LOCKED' : 'MULE DETECTED';
+  const label  = isBase ? 'BASELINE LOCKED' : 'IDENTITY DIVERGENCE';
   const sub    = isBase
-    ? 'BEHAVIORAL CENTROID STORED // OWNER PROFILE ACTIVE'
-    : `MATCH SCORE: ${SCORE}%  //  THRESHOLD: 65%  //  ACCESS DENIED`;
+    ? 'BEHAVIORAL CENTROID STORED // PHYSICAL PROFILE ACTIVE'
+    : `MATCH SCORE: ${SCORE}%  //  THRESHOLD: 65%  //  PHYSICAL CADENCE MISMATCH`;
   const Icon = isBase
     ? () => <path d="M20 6 9 17l-5-5"/>
     : () => <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>;
@@ -781,7 +781,7 @@ export default function HowItWorksAnimation() {
                     </div>
                   </div>
                 )}
-                <TypingScene label="MULE" accent="#ff6b35" activeKey={activeKey} data={ML} zooming={stage === 'mule_warp_enter'} />
+                <TypingScene label="CHALLENGER" accent="#ff6b35" activeKey={activeKey} data={ML} zooming={stage === 'mule_warp_enter'} />
               </>
             )}
 

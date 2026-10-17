@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeystrokeEvent,
   NormVector,
@@ -11,7 +11,9 @@ import {
   FEATURE_NAMES,
   averageRawVectors,
   normaliseVector,
+  generatePlainLanguageReadout,
 } from './biometrics';
+import IdentitySignatureCard from './IdentitySignatureCard';
 
 interface Props {
   similarity: number;
@@ -58,7 +60,7 @@ function ScoreRing({ score, band }: { score: number; band: Band }) {
         </div>
       </div>
       <div style={{ padding: '0.4rem 1.125rem', borderRadius: 9999, border: `1px solid ${color}55`, background: `${color}11`, color, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', fontWeight: 600 }}>
-        {band === 'match' ? 'IDENTITY VERIFIED' : band === 'rushed' ? 'RUSHED STATE' : 'ANOMALY DETECTED'}
+        {band === 'match' ? 'DIGITAL IDENTITY CONFIRMED' : band === 'rushed' ? 'MILD VARIANCE (PERMITTED)' : 'IDENTITY DIVERGENCE'}
       </div>
     </div>
   );
@@ -177,6 +179,10 @@ export default function ResultsView({
   const bNorm = normaliseVector(baselineRaw);
   const lNorm = liveNorm;
 
+  const readouts = useMemo(() => {
+    return generatePlainLanguageReadout(baselineRaw, liveVector, featureDeltas, similarity);
+  }, [baselineRaw, liveVector, featureDeltas, similarity]);
+
   // Raw values for display
   const rawPairs = [
     { l: 'WPM',         v: Math.round(liveVector.wpm),            b: Math.round(baselineRaw.wpm),            u: 'wpm' },
@@ -224,7 +230,7 @@ export default function ResultsView({
             </span>
           </div>
           <p style={{ margin: '0.2rem 0 0', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.95rem', fontWeight: 700, color: bandColor }}>
-            {band === 'match' ? 'ACCESS GRANTED' : band === 'rushed' ? 'STEPPED UP — FURTHER VERIFICATION NEEDED' : 'ACCESS DENIED — BEHAVIORAL ANOMALY'}
+            {band === 'match' ? 'DIGITAL IDENTITY CONFIRMED — PHYSICAL RHYTHM VERIFIED' : band === 'rushed' ? 'PERMITTED WITH MILD VARIANCE — WITHIN TOLERANCE' : 'IDENTITY DIVERGENCE — PHYSICAL CADENCE MISMATCH'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -252,7 +258,54 @@ export default function ResultsView({
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
           <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <ScoreRing score={similarity} band={band} />
+            {/* Top row: Score ring + Plain Language Readout + Identity Signature Card */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '1.25rem', alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center' }}>
+                <ScoreRing score={similarity} band={band} />
+
+                {/* Plain-Language Readout Card */}
+                <div
+                  style={{
+                    borderRadius: 10,
+                    background: 'rgba(0,0,0,0.4)',
+                    border: `1px solid ${bandColor}40`,
+                    padding: '0.85rem 1rem',
+                    boxShadow: `0 0 16px ${bandColor}15`,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '0.45rem' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: bandColor }} />
+                    <span style={{ fontSize: '0.64rem', fontFamily: 'JetBrains Mono, monospace', color: bandColor, fontWeight: 700, letterSpacing: '0.08em' }}>
+                      TRANSLATION READOUT // PHYSICAL-TO-DIGITAL
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {readouts.map((text, idx) => (
+                      <p
+                        key={idx}
+                        style={{
+                          margin: 0,
+                          fontSize: '0.78rem',
+                          color: '#d1e5e8',
+                          lineHeight: 1.45,
+                          fontFamily: 'JetBrains Mono, monospace',
+                        }}
+                      >
+                        ▸ {text}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <IdentitySignatureCard
+                label="Live Attempt Signature"
+                sublabel="Physical Neuromuscular Profile"
+                rawVector={liveVector}
+                accentColor={bandColor}
+                highlighted={true}
+              />
+            </div>
 
             {/* Quick stat cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.625rem' }}>
@@ -393,6 +446,13 @@ export default function ResultsView({
             </div>
           </div>
         )}
+      </div>
+
+      {/* On-screen Prototype Disclaimer */}
+      <div style={{ textAlign: 'center', padding: '0.75rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <p style={{ margin: 0, fontSize: '0.68rem', fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.38)' }}>
+          Prototype. Thresholds are illustrative and not yet validated on real populations.
+        </p>
       </div>
     </div>
   );

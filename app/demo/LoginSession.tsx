@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   IGNORED_KEYS,
   KeystrokeEvent,
@@ -15,6 +15,7 @@ import {
   NormVector,
 } from './biometrics';
 import { verifySessionApi } from '@/lib/apiClient';
+import PhysicalDigitalSplitView from './PhysicalDigitalSplitView';
 
 const PASSPHRASE = 'behavioral authentication protects accounts where passwords cannot reach';
 
@@ -63,12 +64,41 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
   const [hasBackspace, setHasBackspace] = useState(false);
   const [isPasted, setIsPasted] = useState(false);
 
+  // Live telemetry state for Physical vs Digital Split View
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [latestHoldMs, setLatestHoldMs] = useState<number | null>(null);
+  const [latestFlightMs, setLatestFlightMs] = useState<number | null>(null);
+  const [liveKeystrokes, setLiveKeystrokes] = useState<KeystrokeEvent[]>([]);
+
   const downMap = useRef(new Map<string, number>());
   const keystrokesRef = useRef<KeystrokeEvent[]>([]);
   const flightsRef = useRef<FlightEvent[]>([]);
   const lastKeyRef = useRef<string | null>(null);
   const lastUpTimeRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
+
+  const baselineRaw = useMemo(() => averageRawVectors(baselineSessions), [baselineSessions]);
+  const baselineNorm = useMemo(() => normaliseVector(baselineRaw), [baselineRaw]);
+
+  // Live WPM calculation
+  const elapsedMins = startTimeRef.current ? Math.max(0.01, (performance.now() - startTimeRef.current) / 60000) : 0;
+  const liveWpm = elapsedMins > 0 ? (typed.length / 5) / elapsedMins : 0;
+
+  // Real-time live similarity calculation as keys are pressed
+  const { liveNormVector, liveScore } = useMemo(() => {
+    if (keystrokesRef.current.length < 3) return { liveNormVector: null, liveScore: null };
+    const totalMs = startTimeRef.current ? performance.now() - startTimeRef.current : 1000;
+    const raw = extractRawVector({
+      keystrokes: keystrokesRef.current,
+      flights: flightsRef.current,
+      totalDurationMs: totalMs,
+      charCount: typed.length,
+    });
+    const norm = normaliseVector(raw);
+    const score = hybridSimilarity(baselineNorm, norm);
+    return { liveNormVector: norm, liveScore: score };
+  }, [typed, liveKeystrokes, baselineNorm]);
+
 
   const normalizedTyped = typed.trim().toLowerCase().replace(/\s+/g, ' ');
   const normalizedTarget = PASSPHRASE.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -108,8 +138,12 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
     const now = performance.now();
     if (!startTimeRef.current) startTimeRef.current = now;
     downMap.current.set(key, now);
+    setActiveKey(key);
+
     if (lastUpTimeRef.current !== null && lastKeyRef.current !== null) {
-      flightsRef.current.push({ fromKey: lastKeyRef.current, toKey: key, flightTime: now - lastUpTimeRef.current });
+      const flight = Math.max(1, now - lastUpTimeRef.current);
+      setLatestFlightMs(flight);
+      flightsRef.current.push({ fromKey: lastKeyRef.current, toKey: key, flightTime: flight });
     }
   }, []);
 
@@ -119,11 +153,19 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
     const now = performance.now();
     const downTime = downMap.current.get(key);
     if (downTime !== undefined) {
-      keystrokesRef.current.push({ key, downTime, upTime: now, holdTime: now - downTime });
+      const hold = Math.max(1, now - downTime);
+      setLatestHoldMs(hold);
+      const stroke = { key, downTime, upTime: now, holdTime: hold };
+      keystrokesRef.current.push(stroke);
+      setLiveKeystrokes(prev => [...prev.slice(-20), stroke]);
       downMap.current.delete(key);
     }
     lastUpTimeRef.current = now;
     lastKeyRef.current = key;
+
+    setTimeout(() => {
+      setActiveKey(prev => (prev === key ? null : prev));
+    }, 120);
   }, []);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
@@ -256,10 +298,10 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
   }
 
   return (
-    <div style={{ padding: '2rem 1.5rem' }}>
+    <div style={{ padding: '1.5rem' }}>
       {/* Logo header */}
-      <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: '0.6rem' }}>
+      <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: '0.4rem' }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             {LOGO_PATHS.map((d, i) => <path key={i} d={d} />)}
           </svg>
@@ -268,35 +310,49 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
           </span>
         </div>
         <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: '0.82rem' }}>
-          Secure Banking Portal · Behavioral Authentication
+          Physical-to-Digital Identity Verification · Bridge the Gap
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.125rem' }}>
-        {/* Name */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginBottom: '0.375rem', fontFamily: 'JetBrains Mono, monospace' }}>
-            FULL NAME
-          </label>
-          <input type="text" className="login-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Charvi Naresh" autoComplete="name" />
-        </div>
+      {/* ── LIVE TRANSLATION & PHYSICAL VS DIGITAL SPLIT VIEW ── */}
+      <PhysicalDigitalSplitView
+        activeKey={activeKey}
+        keystrokes={liveKeystrokes}
+        latestHoldMs={latestHoldMs}
+        latestFlightMs={latestFlightMs}
+        wpm={liveWpm}
+        normVector={liveNormVector}
+        score={liveScore}
+        scoreType="match"
+        accentColor="#00f5d4"
+      />
 
-        {/* Email */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginBottom: '0.375rem', fontFamily: 'JetBrains Mono, monospace' }}>
-            ACCOUNT EMAIL
-          </label>
-          <input type="email" className="login-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="e.g. charvi@finobank.in" autoComplete="email" />
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Identity Credentials */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted-foreground)', marginBottom: '0.35rem', fontFamily: 'JetBrains Mono, monospace' }}>
+              OPERATOR NAME
+            </label>
+            <input type="text" className="login-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Charvi Naresh" autoComplete="name" />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted-foreground)', marginBottom: '0.35rem', fontFamily: 'JetBrains Mono, monospace' }}>
+              IDENTITY ACCOUNT
+            </label>
+            <input type="email" className="login-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="e.g. charvi@hackflux.io" autoComplete="email" />
+          </div>
         </div>
 
         {/* Behavioral passphrase */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
             <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontFamily: 'JetBrains Mono, monospace' }}>
-              BEHAVIORAL PASSPHRASE
+              PHYSICAL VERIFICATION PASSPHRASE
             </label>
             <span style={{ fontSize: '0.65rem', fontFamily: 'JetBrains Mono, monospace', color: '#00f5d4', background: 'rgba(0,245,212,0.08)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(0,245,212,0.2)' }}>
-              BIOMETRIC ACTIVE
+              TRANSLATOR ACTIVE
             </span>
           </div>
 

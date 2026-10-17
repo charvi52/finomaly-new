@@ -176,15 +176,14 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className="status-dot" />
-              <span className="eyebrow">A NEW LAYER OF TRUST</span>
+              <span className="eyebrow">HACKATHON 2026 // BRIDGE THE GAP</span>
             </div>
             <h1 className="hero-title">
-              THE FUTURE<br />IS <span style={{ color: 'var(--primary)' }}>SAFE</span><span style={{ color: 'var(--primary)' }}>.</span>
+              TRANSLATE<br />HUMAN <span style={{ color: 'var(--primary)' }}>RHYTHM</span><span style={{ color: 'var(--primary)' }}>.</span>
             </h1>
-            <p style={{ maxWidth: 420, color: 'var(--muted-foreground)', fontSize: '1.05rem', lineHeight: 1.65, margin: 0 }}>
-              Passwords can be stolen.<br />
-              The way you move cannot be easily copied.<br />
-              Meet the identity layer that knows it&apos;s you.
+            <p style={{ maxWidth: 460, color: 'var(--muted-foreground)', fontSize: '1.05rem', lineHeight: 1.65, margin: 0 }}>
+              Online systems only see passwords and OTPs—they cannot see who is physically there.<br /><br />
+              Finomaly acts as a <strong style={{ color: '#00f5d4' }}>real-time translator</strong>: bridging the physical-digital divide by converting human muscle memory into an authentic digital identity signal.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
               <DemoModal />
@@ -312,34 +311,42 @@ export default function Home() {
         </section>
 
         {/* ── IDENTITY GAP ── */}
+        {/* ── THE PHYSICAL VS DIGITAL GAP ── */}
         <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--card)' }}>
           <div className="shell" style={{ display: 'grid', alignItems: 'center', gap: '3rem', gridTemplateColumns: '1.1fr 1fr', paddingTop: '5rem', paddingBottom: '5rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <p className="eyebrow">THE CREDENTIALS ARE REAL. THE PERSON ISN&apos;T.</p>
-              <h2 className="section-title">Correct password.<br /><span style={{ color: 'var(--muted-foreground)' }}>Wrong hands.</span></h2>
+              <p className="eyebrow">THE PHYSICAL-TO-DIGITAL DIVIDE</p>
+              <h2 className="section-title">Valid credentials.<br /><span style={{ color: 'var(--muted-foreground)' }}>Invisible human.</span></h2>
               <p style={{ color: 'var(--muted-foreground)', maxWidth: 480, lineHeight: 1.7, margin: 0 }}>
-                Mule accounts turn legitimate bank accounts into channels for cybercrime. When an account is sold or taken over, passwords and OTPs can still check out. Traditional authentication stops at the door.
+                Digital interfaces only receive keystroke characters, cookies, and tokens. They cannot tell who is physically seated at the keyboard. Whether an account is hijacked, shared, or automated, the digital screen sees only characters.
               </p>
               <p style={{ color: 'var(--foreground)', maxWidth: 480, lineHeight: 1.7, margin: 0 }}>
-                Finomaly asks a better question: <span style={{ color: 'var(--primary)' }}>does the person behind the screen still behave like you?</span>
+                Finomaly builds the missing bridge: <span style={{ color: 'var(--primary)' }}>translating the physical cadence of human motor memory into a continuous, non-invasive digital identity signal.</span>
               </p>
             </div>
             <div style={{ borderRadius: 16, border: '1px solid var(--border)', background: 'var(--background)', padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem', marginBottom: '1.25rem' }}>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>THE IDENTITY GAP</span>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>THE IDENTIFICATION GAP</span>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2"><circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg>
               </div>
-              {['Password verified', 'OTP authenticated', 'Account access granted'].map(item => (
-                <div key={item} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--muted-foreground)' }}>{item}</span>
+              {[
+                { title: 'Digital Credentials Verified', status: 'Sees characters & tokens only' },
+                { title: 'Session Cookie Present', status: 'Blind to physical user presence' },
+                { title: 'Neuromuscular Rhythm Translated', status: 'Identifies the physical human' },
+              ].map(item => (
+                <div key={item.title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
+                  <div>
+                    <span style={{ color: 'var(--foreground)', fontSize: '0.85rem', display: 'block' }}>{item.title}</span>
+                    <span style={{ color: 'var(--muted-foreground)', fontSize: '0.72rem', fontFamily: 'JetBrains Mono, monospace' }}>{item.status}</span>
+                  </div>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2"><path d="M20 6 9 17l-5-5"/></svg>
                 </div>
               ))}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: '1.25rem', padding: '1.125rem', borderRadius: 8, border: '1px solid rgba(0,245,212,0.25)', background: 'rgba(0,245,212,0.05)', color: 'var(--primary)' }}>
                 <FingerprintIcon size={28} />
                 <div>
-                  <p style={{ margin: 0, fontWeight: 500, fontSize: '0.9rem' }}>But is it really you?</p>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>This is where Finomaly begins.</p>
+                  <p style={{ margin: 0, fontWeight: 500, fontSize: '0.9rem' }}>Finomaly is the Translator.</p>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>Bridging human muscle memory to online authentication.</p>
                 </div>
               </div>
             </div>
@@ -382,10 +389,10 @@ export default function Home() {
               <p className="eyebrow">SMALL TEAM. NATIONAL AMBITION.</p>
               <h2 className="section-title">Built for a hackathon.<br /><span style={{ color: 'var(--muted-foreground)' }}>Thinking far beyond it.</span></h2>
               <p style={{ color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>
-                We&apos;re Team Hackflux. Three builders exploring one question: what if your natural behavior could help protect your financial identity?
+                We&apos;re Team Hackflux. Three builders exploring one question: what if your natural physical behavior could serve as your authentic digital identity?
               </p>
               <p style={{ color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>
-                Next: expert algorithm reviews, adversarial testing, and privacy-first research. Our ambition is to help tackle India&apos;s mule account crisis at a national scale.
+                Next: algorithmic robustness reviews, cross-device testing, and privacy-first research. Our ambition is to build universal identity translation that bridges human presence and digital access seamlessly.
               </p>
               <div style={{ marginTop: '0.5rem' }}>
                 <a
@@ -457,30 +464,31 @@ export default function Home() {
           </div>
           <div>
             <FaqItem
-              q="Can someone copy my typing pattern?"
-              a="Copying credentials is easy. Copying the micro-timing of how a person types is much harder. Even if an attacker knows your password, replicating your dwell times and flight transitions consistently, in real time, is extremely difficult. Pasted text and scripted input also tend to show unnatural timing, which is itself a useful signal."
+              q="How does Finomaly bridge the physical and digital gap?"
+              a="Digital systems only see passwords, keys, and session cookies—they have zero visibility into who is physically operating the keyboard. Finomaly acts as a continuous translator, converting micro-dwell times and flight intervals into a 5-dimensional identity vector. When an unauthorized user takes over, the physical rhythm diverges instantly, alerting the system without tracking keystroke content."
             />
             <FaqItem
-              q="Can automated bots or scripts bypass Finomaly?"
-              a="No. Scripts and bots type with unnatural, mathematical perfection—such as 0ms hold times or identical key intervals. Finomaly's similarity engine flags these rigid patterns as zero-telemetry anomalies."
+              q="Does Finomaly record or store what I type?"
+              a="Never. Finomaly records zero typed content. No passwords, characters, or text strings ever leave your browser or get saved. Only anonymous numeric timing metrics (milliseconds) are computed. Furthermore, all active sessions are erased immediately when you close the session."
             />
             <FaqItem
-              q="Can I update my typing baseline?"
-              a="Yes. In a production deployment, your baseline can be refreshed every six months or whenever your typing habits change noticeably. A new baseline is only created after you pass strong verification (such as an OTP or step-up authentication), so no one else can overwrite your profile."
+              q="Can someone mimic my typing cadence?"
+              a="Copying credentials is easy. Copying the neuromuscular micro-timing of how an individual types is mathematically difficult. Even if an attacker knows your password, replicating your key dwell times, transition speeds, and flight variance consistently, in real time, produces detectable statistical divergence."
             />
             <FaqItem
               q="What happens if I'm tired or typing faster?"
-              a="The prototype uses three similarity bands: 85–100% is a match; 65–84% is a rushed state that does not block the demo; below 65% is a behavioral anomaly. These are illustrative thresholds, not clinically or financially validated measures."
+              a="The prototype uses three similarity bands: 85–100% is a verified match; 65–84% is a mild variance state that does not block access; below 65% indicates an identity divergence. These are illustrative thresholds, not clinically validated measures."
             />
-            {/* ── UPDATED FAQ ANSWER: Compelling and empowering framing for mule detection ── */}
-            <FaqItem
-              q="Can this identify a mule account or unauthorized user?"
-              a="Yes, by recognizing when an account is operated by someone other than its true owner. In mule fraud and account takeover schemes, attackers routinely possess correct credentials and OTPs. However, they cannot easily replicate the legitimate user's unique rhythm, keystroke dwell times, and flight transitions. Finomaly evaluates these neuromuscular patterns in the background. When a divergence occurs, it provides an immediate protective signal—enabling financial systems to step up verification and halt fraudulent transactions before damage occurs."
-            />
-            <FaqItem
-              q="Is this ready to connect to a bank?"
-              a="Not yet. This is an interactive research prototype. Production use requires consent, secure server-side enrollment, representative testing, anti-spoofing controls, accessibility review, regulatory assessment, and independent security audits."
-            />
+
+            {/* ── ABOUT & LIMITATIONS DISCLOSURE CARD ── */}
+            <div style={{ marginTop: '2.5rem', padding: '1.25rem 1.5rem', borderRadius: 12, border: '1px solid rgba(0,245,212,0.25)', background: 'rgba(0,245,212,0.03)', fontFamily: 'JetBrains Mono, monospace' }}>
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#00f5d4', fontWeight: 700, letterSpacing: '0.04em' }}>
+                PROTOTYPE DISCLOSURE &amp; OPERATIONAL BOUNDARIES
+              </p>
+              <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--muted-foreground)', lineHeight: 1.65 }}>
+                Prototype. Thresholds are illustrative and not yet validated on real populations. Opt-in timing capture only. No typed text or sensitive credentials are ever recorded or stored. In production environments, behavioral biometrics serve as an adaptive secondary signal alongside standard zero-trust authenticators.
+              </p>
+            </div>
           </div>
         </section>
 
