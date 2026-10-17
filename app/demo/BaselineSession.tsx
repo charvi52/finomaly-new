@@ -68,6 +68,23 @@ export default function BaselineSession({ onComplete }: Props) {
 
   const currentPassage = BASELINE_PASSAGES[currentSessionIndex];
 
+  // Live WPM calculation
+  const elapsedMins = startTimeRef.current ? Math.max(0.01, (performance.now() - startTimeRef.current) / 60000) : 0;
+  const liveWpm = elapsedMins > 0 ? (typed.length / 5) / elapsedMins : 0;
+
+  // Live 5D normalized vector (declared before any early returns to avoid React hook violation)
+  const liveNormVector = useMemo(() => {
+    if (keystrokesRef.current.length < 2) return null;
+    const totalMs = startTimeRef.current ? performance.now() - startTimeRef.current : 1000;
+    const raw = extractRawVector({
+      keystrokes: keystrokesRef.current,
+      flights: flightsRef.current,
+      totalDurationMs: totalMs,
+      charCount: typed.length,
+    });
+    return normaliseVector(raw);
+  }, [typed, liveKeystrokes]);
+
   // Derived metrics
   const wc = wordCount(typed);
   const canSubmit = wc >= MIN_WORDS;
@@ -301,23 +318,6 @@ export default function BaselineSession({ onComplete }: Props) {
       </div>
     );
   }
-
-  // Live WPM calculation
-  const elapsedMins = startTimeRef.current ? Math.max(0.01, (performance.now() - startTimeRef.current) / 60000) : 0;
-  const liveWpm = elapsedMins > 0 ? (typed.length / 5) / elapsedMins : 0;
-
-  // Live 5D normalized vector
-  const liveNormVector = useMemo(() => {
-    if (keystrokesRef.current.length < 2) return null;
-    const totalMs = startTimeRef.current ? performance.now() - startTimeRef.current : 1000;
-    const raw = extractRawVector({
-      keystrokes: keystrokesRef.current,
-      flights: flightsRef.current,
-      totalDurationMs: totalMs,
-      charCount: typed.length,
-    });
-    return normaliseVector(raw);
-  }, [typed, liveKeystrokes]);
 
   // ── Accuracy ring SVG ────────────────────────────────────────────────────
   const R = 28;
