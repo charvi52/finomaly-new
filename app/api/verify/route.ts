@@ -13,6 +13,7 @@ import {
   RawVector,
   averageRawVectors,
   ensureRawVector,
+  rawVectorToArray,
 } from '@/app/demo/biometrics';
 
 export const runtime = 'nodejs';
@@ -173,6 +174,7 @@ export async function POST(req: NextRequest) {
       band,
       features: {
         liveVector: vectorValidation.vector,
+        baselineVector: rawVectorToArray(baselineRaw),
         featureDeltas,
       },
       flags: {

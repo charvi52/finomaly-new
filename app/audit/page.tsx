@@ -3,23 +3,29 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { getDemoUserId } from '@/lib/apiClient';
+import AuditAnalysisModal, { AuditLogData } from './AuditAnalysisModal';
 
-interface AuditLogItem {
-  id: string;
-  user_id: string;
-  score: number;
-  band: string;
-  flags?: {
-    pasteDetected?: boolean;
-    botSuspected?: boolean;
-  };
-  created_at: string;
-}
+const SAMPLE_DEMO_LOG: AuditLogData = {
+  id: 'a7b8c9d0-demo-telemetry-sample',
+  user_id: 'ephemeral-demo-user-7f8a',
+  score: 0.91,
+  band: 'match',
+  features: {
+    baselineVector: [115, 95, 58, 22, 28],
+    liveVector: [122, 91, 62, 24, 30],
+  },
+  flags: {
+    pasteDetected: false,
+    botSuspected: false,
+  },
+  created_at: new Date().toISOString(),
+};
 
 export default function AuditPage() {
   const [userId, setUserId] = useState('');
   const [filterMode, setFilterMode] = useState<'session' | 'all'>('session');
-  const [logs, setLogs] = useState<AuditLogItem[]>([]);
+  const [logs, setLogs] = useState<AuditLogData[]>([]);
+  const [selectedLog, setSelectedLog] = useState<AuditLogData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -230,28 +236,46 @@ export default function AuditPage() {
               <p style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
                 Complete an authentication session from the home page, or switch to view all system audits.
               </p>
-              {filterMode === 'session' && (
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '0.85rem' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    setFilterMode('all');
-                    fetchAuditLogs('all', 'all');
-                  }}
+                  onClick={() => setSelectedLog(SAMPLE_DEMO_LOG)}
                   style={{
-                    marginTop: '0.75rem',
                     padding: '0.45rem 1rem',
                     borderRadius: 6,
-                    border: '1px solid rgba(0,245,212,0.4)',
-                    background: 'rgba(0,245,212,0.08)',
+                    border: '1px solid rgba(0,245,212,0.6)',
+                    background: 'rgba(0,245,212,0.12)',
                     color: '#00f5d4',
                     cursor: 'pointer',
                     fontFamily: 'JetBrains Mono, monospace',
                     fontSize: '0.75rem',
+                    fontWeight: 600,
                   }}
                 >
-                  View All Recent System Audits ↗
+                  ◈ Preview Sample Visual Analysis ↗
                 </button>
-              )}
+                {filterMode === 'session' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterMode('all');
+                      fetchAuditLogs('all', 'all');
+                    }}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      borderRadius: 6,
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--muted-foreground)',
+                      cursor: 'pointer',
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    View All Recent System Audits ↗
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -263,6 +287,7 @@ export default function AuditPage() {
                     <th style={{ padding: '0.75rem 1rem' }}>BAND</th>
                     <th style={{ padding: '0.75rem 1rem' }}>FLAGS</th>
                     <th style={{ padding: '0.75rem 1rem' }}>LOG ID</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ANALYSIS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -296,6 +321,44 @@ export default function AuditPage() {
                         <td style={{ padding: '0.875rem 1rem', color: 'var(--muted-foreground)', fontSize: '0.72rem' }}>
                           {log.id.slice(0, 8)}…
                         </td>
+                        <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLog(log)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '5px 12px',
+                              borderRadius: 6,
+                              border: '1px solid rgba(0, 245, 212, 0.4)',
+                              background: 'rgba(0, 245, 212, 0.08)',
+                              color: '#00f5d4',
+                              fontFamily: 'JetBrains Mono, monospace',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = 'rgba(0, 245, 212, 0.18)';
+                              e.currentTarget.style.borderColor = '#00f5d4';
+                              e.currentTarget.style.boxShadow = '0 0 12px rgba(0,245,212,0.3)';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = 'rgba(0, 245, 212, 0.08)';
+                              e.currentTarget.style.borderColor = 'rgba(0, 245, 212, 0.4)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            <span>See Analysis</span>
+                            <span style={{ fontSize: '0.8rem' }}>↗</span>
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -304,6 +367,14 @@ export default function AuditPage() {
             </div>
           )}
         </div>
+
+        {/* Visual Analysis Modal */}
+        {selectedLog && (
+          <AuditAnalysisModal
+            log={selectedLog}
+            onClose={() => setSelectedLog(null)}
+          />
+        )}
       </div>
     </div>
   );

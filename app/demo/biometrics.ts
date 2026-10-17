@@ -233,14 +233,14 @@ export function averageRawVectors(vectors: RawVector[]): RawVector {
 // Feature weights — WPM and hold time are most discriminative, flight time second.
 // ══════════════════════════════════════════════════════════════════════════════
 
-const FEATURE_WEIGHTS = [
+export const FEATURE_WEIGHTS = [
   1.5, // avgHoldTime      — most unique per person
   1.2, // avgFlightTime    — second most discriminative
   1.8, // wpm              — very discriminative (most noticeable)
   0.8, // holdTimeVariance — rhythm consistency
   0.7, // flightTimeVariance
-];
-const WEIGHT_SUM = FEATURE_WEIGHTS.reduce((a, b) => a + b, 0);
+] as const;
+export const WEIGHT_SUM = FEATURE_WEIGHTS.reduce((a, b) => a + b, 0);
 
 function dot(a: NormVector, b: NormVector): number {
   return a.reduce((sum, ai, i) => sum + ai * b[i] * FEATURE_WEIGHTS[i], 0);
@@ -250,14 +250,14 @@ function weightedMag(v: NormVector): number {
   return Math.sqrt(v.reduce((sum, vi, i) => sum + (vi ** 2) * FEATURE_WEIGHTS[i], 0));
 }
 
-function cosineSimilarity(a: NormVector, b: NormVector): number {
+export function cosineSimilarity(a: NormVector, b: NormVector): number {
   const magA = weightedMag(a);
   const magB = weightedMag(b);
   if (magA === 0 || magB === 0) return 0;
   return clamp01(dot(a, b) / (magA * magB));
 }
 
-function euclideanPenalty(a: NormVector, b: NormVector): number {
+export function euclideanPenalty(a: NormVector, b: NormVector): number {
   // Weighted squared differences, then normalize to [0,1]
   const weightedSSD = a.reduce((sum, ai, i) => {
     return sum + FEATURE_WEIGHTS[i] * (ai - b[i]) ** 2;
@@ -283,6 +283,93 @@ export function hybridSimilarity(baseline: NormVector, live: NormVector): number
   // but large diffs cause substantial drops.
   const penaltyFactor = (1 - penalty) ** 2;
   return clamp01(cosine * penaltyFactor);
+}
+
+export interface DetailedMathAnalysis {
+  baselineRaw: RawVector;
+  liveRaw: RawVector;
+  baselineNorm: NormVector;
+  liveNorm: NormVector;
+  weights: readonly number[];
+  weightSum: number;
+  weightedDotProduct: number;
+  baselineMag: number;
+  liveMag: number;
+  cosineSimilarity: number;
+  cosineAngleDegrees: number;
+  featureSquaredDeltas: {
+    name: string;
+    weight: number;
+    baselineNorm: number;
+    liveNorm: number;
+    diff: number;
+    weightedSqDiff: number;
+  }[];
+  weightedSsdSum: number;
+  euclideanPenalty: number;
+  penaltyFactor: number;
+  finalScore: number;
+  finalScorePct: number;
+  band: Band;
+  featureDeltas: FeatureDelta[];
+}
+
+export function computeDetailedAnalysis(
+  baselineCandidate: any,
+  liveCandidate: any
+): DetailedMathAnalysis {
+  const baselineRaw = ensureRawVector(baselineCandidate);
+  const liveRaw = ensureRawVector(liveCandidate);
+  const baselineNorm = normaliseVector(baselineRaw);
+  const liveNorm = normaliseVector(liveRaw);
+
+  const dotProd = dot(baselineNorm, liveNorm);
+  const bMag = weightedMag(baselineNorm);
+  const lMag = weightedMag(liveNorm);
+  const cosSim = (bMag === 0 || lMag === 0) ? 0 : clamp01(dotProd / (bMag * lMag));
+  const cosAngleDeg = Math.acos(Math.min(1, Math.max(0, cosSim))) * (180 / Math.PI);
+
+  const featureSqDeltas = FEATURE_NAMES.map((name, i) => {
+    const diff = liveNorm[i] - baselineNorm[i];
+    const weightedSqDiff = FEATURE_WEIGHTS[i] * (diff ** 2);
+    return {
+      name,
+      weight: FEATURE_WEIGHTS[i],
+      baselineNorm: baselineNorm[i],
+      liveNorm: liveNorm[i],
+      diff,
+      weightedSqDiff,
+    };
+  });
+
+  const weightedSsdSum = featureSqDeltas.reduce((acc, curr) => acc + curr.weightedSqDiff, 0);
+  const penalty = clamp01(Math.sqrt(weightedSsdSum / WEIGHT_SUM));
+  const penaltyFactor = (1 - penalty) ** 2;
+  const finalScore = clamp01(cosSim * penaltyFactor);
+  const band = scoreToBand(finalScore);
+  const featureDeltas = computeFeatureDeltas(baselineRaw, liveRaw);
+
+  return {
+    baselineRaw,
+    liveRaw,
+    baselineNorm,
+    liveNorm,
+    weights: FEATURE_WEIGHTS,
+    weightSum: WEIGHT_SUM,
+    weightedDotProduct: dotProd,
+    baselineMag: bMag,
+    liveMag: lMag,
+    cosineSimilarity: cosSim,
+    cosineAngleDegrees: cosAngleDeg,
+    featureSquaredDeltas: featureSqDeltas,
+    weightedSsdSum,
+    euclideanPenalty: penalty,
+    penaltyFactor,
+    finalScore,
+    finalScorePct: Math.round(finalScore * 100),
+    band,
+    featureDeltas,
+  };
 }
 
 // ── Per-session similarities (for the radar chart) ───────────────────────────

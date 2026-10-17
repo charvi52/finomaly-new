@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   KeystrokeEvent,
   NormVector,
@@ -236,7 +237,33 @@ export default function ResultsView({
             {band === 'match' ? 'DIGITAL IDENTITY CONFIRMED — PHYSICAL RHYTHM VERIFIED' : band === 'rushed' ? 'PERMITTED WITH MILD VARIANCE — WITHIN TOLERANCE' : 'IDENTITY DIVERGENCE — PHYSICAL CADENCE MISMATCH'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <Link
+            href="/audit"
+            target="_blank"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '0.45rem 0.85rem',
+              borderRadius: 8,
+              border: '1px solid rgba(0, 245, 212, 0.4)',
+              background: 'rgba(0, 245, 212, 0.1)',
+              color: '#00f5d4',
+              textDecoration: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              fontFamily: 'JetBrains Mono, monospace',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <span>See Analysis in Audit Log ↗</span>
+          </Link>
           <button onClick={onRetry} style={{ padding: '0.45rem 0.875rem', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--foreground)', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>Try Again</button>
           <button onClick={onClose} style={{ padding: '0.45rem 0.875rem', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted-foreground)', cursor: 'pointer', fontSize: '0.78rem' }}>Close</button>
         </div>
