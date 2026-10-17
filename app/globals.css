@@ -4,10 +4,10 @@
 :root {
   --background: #080c0d;
   --foreground: #f0f4f5;
-  --card: #0c1315;
-  --border: #162224;
-  --primary: #00e5a3;
-  --muted-foreground: #71878d;
+  --card: #0d1517;
+  --border: #1a2628;
+  --primary: #00f5d4;
+  --muted-foreground: #6b7e83;
   --font-mono: 'JetBrains Mono', monospace;
   --font-sans: 'Space Grotesk', sans-serif;
 }
@@ -79,14 +79,14 @@ body {
   border-radius: 12px;
   transition: border-color 0.2s;
 }
-.tech-card:hover { border-color: rgba(0,229,163,0.3); }
+.tech-card:hover { border-color: rgba(0,245,212,0.3); }
 
 /* ── Hero art & Biometric Scanner ────────────────────────────── */
 .hero-art {
   position: relative;
   border-radius: 20px;
   overflow: hidden;
-  background: radial-gradient(ellipse at 50% 50%, rgba(0, 229, 163, 0.09) 0%, #080c0d 75%);
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 245, 212, 0.09) 0%, #080c0d 75%);
   border: 1px solid var(--border);
   aspect-ratio: 1;
   max-height: 520px;
@@ -121,7 +121,7 @@ body {
   mix-blend-mode: screen;
   mask-image: radial-gradient(ellipse at center, #000 55%, transparent 76%);
   -webkit-mask-image: radial-gradient(ellipse at center, #000 55%, transparent 76%);
-  filter: drop-shadow(0 0 45px rgba(0, 229, 163, 0.4));
+  filter: drop-shadow(0 0 45px rgba(0, 245, 212, 0.4));
   animation: fp-breathe 4.5s ease-in-out infinite;
   z-index: 2;
   position: relative;
@@ -130,11 +130,11 @@ body {
 @keyframes fp-breathe {
   0%, 100% {
     transform: scale(1.06) translateY(0);
-    filter: drop-shadow(0 0 35px rgba(0, 229, 163, 0.3));
+    filter: drop-shadow(0 0 35px rgba(0, 245, 212, 0.3));
   }
   50% {
     transform: scale(1.10) translateY(-6px);
-    filter: drop-shadow(0 0 60px rgba(0, 229, 163, 0.55));
+    filter: drop-shadow(0 0 60px rgba(0, 245, 212, 0.55));
   }
 }
 
@@ -172,14 +172,14 @@ body {
   z-index: 6;
 }
 
-.scan-bracket.tl { top: 22px; left: 22px; border-left: 2px solid rgba(0, 229, 163, 0.55); border-top: 2px solid rgba(0, 229, 163, 0.55); }
-.scan-bracket.tr { top: 22px; right: 22px; border-right: 2px solid rgba(0, 229, 163, 0.55); border-top: 2px solid rgba(0, 229, 163, 0.55); }
-.scan-bracket.bl { bottom: 84px; left: 22px; border-left: 2px solid rgba(0, 229, 163, 0.55); border-bottom: 2px solid rgba(0, 229, 163, 0.55); }
-.scan-bracket.br { bottom: 84px; right: 22px; border-right: 2px solid rgba(0, 229, 163, 0.55); border-bottom: 2px solid rgba(0, 229, 163, 0.55); }
+.scan-bracket.tl { top: 22px; left: 22px; border-left: 2px solid rgba(0, 245, 212, 0.55); border-top: 2px solid rgba(0, 245, 212, 0.55); }
+.scan-bracket.tr { top: 22px; right: 22px; border-right: 2px solid rgba(0, 245, 212, 0.55); border-top: 2px solid rgba(0, 245, 212, 0.55); }
+.scan-bracket.bl { bottom: 84px; left: 22px; border-left: 2px solid rgba(0, 245, 212, 0.55); border-bottom: 2px solid rgba(0, 245, 212, 0.55); }
+.scan-bracket.br { bottom: 84px; right: 22px; border-right: 2px solid rgba(0, 245, 212, 0.55); border-bottom: 2px solid rgba(0, 245, 212, 0.55); }
 
 .signal-panel {
   background: rgba(13, 21, 23, 0.88);
-  border: 1px solid rgba(0, 229, 163, 0.2);
+  border: 1px solid rgba(0, 245, 212, 0.2);
   border-radius: 10px;
   backdrop-filter: blur(10px);
 }
@@ -241,12 +241,12 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1.5px solid rgba(0,229,163,0.25);
+  border: 1.5px solid rgba(0,245,212,0.25);
   animation: spin 8s linear infinite;
 }
 .scanner-ring.inner {
   inset: 16px;
-  border-color: rgba(0,229,163,0.15);
+  border-color: rgba(0,245,212,0.15);
   animation-direction: reverse;
   animation-duration: 5s;
 }
@@ -326,7 +326,7 @@ body {
   font-family: var(--font-sans);
 }
 .typing-input:focus, .login-input:focus {
-  border-color: rgba(0,229,163,0.4);
+  border-color: rgba(0,245,212,0.4);
 }
 .typing-input {
   resize: none;
@@ -344,13 +344,13 @@ body {
   font-weight: 600;
 }
 .session-badge.complete {
-  background: rgba(0,229,163,0.12);
-  border: 1px solid rgba(0,229,163,0.35);
+  background: rgba(0,245,212,0.12);
+  border: 1px solid rgba(0,245,212,0.35);
   color: var(--primary);
 }
 .session-badge.active {
-  background: rgba(0,229,163,0.06);
-  border: 1px solid rgba(0,229,163,0.2);
+  background: rgba(0,245,212,0.06);
+  border: 1px solid rgba(0,245,212,0.2);
   color: var(--primary);
 }
 .session-badge.pending {
@@ -375,7 +375,7 @@ body {
 
 /* ── Math blocks ──────────────────────────────────────────────── */
 .math-block {
-  background: rgba(0,229,163,0.03);
+  background: rgba(0,245,212,0.03);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
