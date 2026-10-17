@@ -30,7 +30,7 @@ function FingerprintIcon({ size = 32, color = 'var(--primary)', weight = 1.6 }: 
 function ScannerOverlay({ onDismiss }: { onDismiss: () => void }) {
   const [dismissed, setDismissed] = useState(false);
   const [statusIdx, setStatusIdx] = useState(0);
-  const STATUS = ['Initializing identity layer', 'Loading behavioral engine', 'System ready'];
+  const STATUS = ['Initializing sensor matrix', 'Calibrating physical telemetry', 'System ready'];
 
   useEffect(() => {
     const t1 = setTimeout(() => setStatusIdx(1), 1200);
@@ -293,7 +293,7 @@ export default function Home() {
               { badge: 'THE FOUNDATION', title: 'Next.js', desc: 'Fast, responsive. Built for every interaction that matters.', icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 19.5h20L12 2zm0 5l7 12.5H5L12 7z"/></svg> },
               { badge: 'THE EXPERIENCE', title: 'Framer Motion', desc: 'Fluid motion that brings an invisible layer of security into focus.', icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg> },
               { badge: 'THE SIGNATURE', title: 'Hybrid Biometrics', desc: 'Five behavioral dimensions. One signature uniquely yours — with weighted Euclidean penalty for real sensitivity.', icon: <FingerprintIcon size={32} /> },
-              { badge: 'THE INTELLIGENCE', title: 'Hybrid Similarity', desc: 'Cosine × Euclidean penalty. Gaps in WPM, hold time or flight time now meaningfully reduce match score.', icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14h6v6"/><path d="M10 10H4V4"/><path d="M22 2 12 12"/><path d="M2 22l10-10"/></svg> },
+              { badge: 'THE MATHEMATICS', title: 'Hybrid Similarity', desc: 'Cosine × Euclidean penalty. Real physical shifts in WPM, dwell duration, or flight gaps directly govern match score.', icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14h6v6"/><path d="M10 10H4V4"/><path d="M22 2 12 12"/><path d="M2 22l10-10"/></svg> },
             ].map(card => (
               <article key={card.title} className="tech-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -356,7 +356,7 @@ export default function Home() {
         {/* ── HOW IT WORKS ── */}
         <section id="architecture" className="shell" style={{ paddingTop: '5rem', paddingBottom: '5rem' }}>
           <p className="eyebrow" style={{ marginBottom: '1.25rem' }}>INSIDE THE ENGINE</p>
-          <h2 className="section-title" style={{ marginBottom: '3rem' }}>Invisible by design.<br /><span style={{ color: 'var(--muted-foreground)' }}>Intelligent at every step.</span></h2>
+          <h2 className="section-title" style={{ marginBottom: '3rem' }}>Invisible by design.<br /><span style={{ color: 'var(--muted-foreground)' }}>Precise to the millisecond.</span></h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden' }}>
             {[
               { phase: '01', title: 'Capture the rhythm', desc: 'Dwell time. Flight time. Typing speed. Five signals, captured only when you opt in.', tag: 'INPUT → BEHAVIORAL TELEMETRY' },

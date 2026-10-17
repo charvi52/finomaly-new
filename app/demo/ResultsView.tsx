@@ -31,7 +31,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = 'overview' | 'features' | 'math' | 'ai';
+type Tab = 'overview' | 'features' | 'math' | 'cadence';
 
 // ── Score ring ────────────────────────────────────────────────────────────────
 function ScoreRing({ score, band }: { score: number; band: Band }) {
@@ -198,7 +198,7 @@ export default function ResultsView({
     { id: 'overview', label: 'Overview' },
     { id: 'features', label: 'Features' },
     { id: 'math',     label: 'Math' },
-    { id: 'ai',       label: 'Model AI' },
+    { id: 'cadence',  label: 'Cadence & Variance' },
   ];
 
   return (
@@ -434,26 +434,26 @@ export default function ResultsView({
           </div>
         )}
 
-        {/* ── AI ── */}
-        {tab === 'ai' && (
+        {/* ── CADENCE & VARIANCE ── */}
+        {tab === 'cadence' && (
           <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div>
               <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', marginBottom: '0.625rem' }}>
-                Autoencoder Reconstruction Error
+                Temporal Deviation & Rhythm Dispersion
               </p>
               <p style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginBottom: '0.875rem' }}>
-                Features with high reconstruction loss drove the anomaly signal. The autoencoder was trained on your baseline session.
+                Features with high deviation from your registered physical baseline centroid drove the anomaly score. Evaluated across 5 physical timing coordinates.
               </p>
               {featureDeltas.map(fd => (
                 <div key={fd.name} style={{ marginBottom: '0.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                     <span style={{ fontSize: '0.78rem', color: fd.isAnomaly ? '#ff6b35' : 'var(--foreground)' }}>{fd.name}</span>
                     <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem', color: fd.isAnomaly ? '#ff6b35' : 'var(--muted-foreground)' }}>
-                      {fd.isAnomaly ? 'HIGH LOSS' : 'LOW LOSS'} — {(100 * Math.abs(fd.delta)).toFixed(1)}%
+                      {fd.isAnomaly ? 'HIGH DIVERGENCE' : 'CONCORDANT'} — {(100 * Math.abs(fd.delta)).toFixed(1)}%
                     </span>
                   </div>
                   <div className="feature-bar-track" style={{ height: 9 }}>
-                    <div style={{ height: '100%', background: fd.isAnomaly ? '#ff4444' : '#00f5d4', borderRadius: 9999, width: `${Math.min(100 * Math.abs(fd.delta) * 3, 100)}%`, transition: 'width 0.8s ease' }} />
+                    <div style={{ height: '100%', background: fd.isAnomaly ? '#ff4444' : 'var(--primary)', borderRadius: 9999, width: `${Math.min(100 * Math.abs(fd.delta) * 3, 100)}%`, transition: 'width 0.8s ease' }} />
                   </div>
                 </div>
               ))}
@@ -461,16 +461,16 @@ export default function ResultsView({
 
             <div>
               <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', marginBottom: '0.625rem' }}>
-                GNN Neighbor Context
+                Multi-Session Baseline Cluster
               </p>
               <p style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginBottom: '0.625rem' }}>
-                Each baseline session (S1–S{baselineSessions.length}) is a trusted node. Edge weight = similarity to current session.
+                Each baseline session (S1–S{baselineSessions.length}) acts as a reference centroid. Edge weight = concordance with live session.
               </p>
               <GNNRadar scores={perSession} />
               <div className="math-block" style={{ marginTop: '0.625rem' }}>
                 <p style={{ margin: 0, fontSize: '0.8rem' }}>
-                  Risk Score = 1 − avg(weights) = 1 − {similarity.toFixed(3)} = {' '}
-                  <span style={{ color: similarity < 0.65 ? '#ff4444' : '#00f5d4' }}>{(1 - similarity).toFixed(3)}</span>
+                  Cluster Divergence Index = 1 − avg(weights) = 1 − {similarity.toFixed(3)} = {' '}
+                  <span style={{ color: similarity < 0.65 ? '#ff4444' : 'var(--primary)' }}>{(1 - similarity).toFixed(3)}</span>
                 </p>
               </div>
             </div>
