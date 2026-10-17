@@ -39,7 +39,13 @@ function loadSavedBaseline(): RawVector[] | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || parsed.v !== 4 || !Array.isArray(parsed.sessions) || parsed.sessions.length < 1) return null;
-    return parsed.sessions;
+    const valid = parsed.sessions.filter((s: any) =>
+      s &&
+      typeof s.avgHoldTime === 'number' && Number.isFinite(s.avgHoldTime) &&
+      typeof s.avgFlightTime === 'number' && Number.isFinite(s.avgFlightTime) &&
+      typeof s.wpm === 'number' && Number.isFinite(s.wpm)
+    );
+    return valid.length >= 1 ? valid : null;
   } catch {
     return null;
   }
