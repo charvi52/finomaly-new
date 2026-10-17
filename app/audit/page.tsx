@@ -231,7 +231,7 @@ export default function AuditPage() {
           {logs.length === 0 ? (
             <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>
               <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.9rem', margin: 0 }}>
-                {loading ? 'Querying audit records from Supabase…' : 'No verification attempts logged yet for this session.'}
+                {loading ? 'Querying encrypted audit records…' : 'No verification attempts logged yet for this session.'}
               </p>
               <p style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
                 Complete an authentication session from the home page, or switch to view all system audits.
