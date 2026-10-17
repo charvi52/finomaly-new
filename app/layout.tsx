@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Finomaly -- The Future Is Safe',
   description:
-    'Beyond passwords. Finomaly explores continuous authentication through behavioral biometrics. Experience the live demo by Team Hackflux.',
+    'Beyond passwords. Finomaly explores continuous authentication through behavioral biometrics. Experience the live demo.',
   applicationName: 'Finomaly',
   robots: 'index, follow',
 };

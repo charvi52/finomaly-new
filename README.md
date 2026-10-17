@@ -192,18 +192,11 @@ Add the same environment variables in **Project Settings > Environment Variables
 
 ---
 
-## 👥 Team Hackflux
+## 👥 Project Team
 
 * **Charvi Naresh**
 * **Dolsi Bajaj**
 * **Vasu Sharma**
-
----
-
-## 📄 Research & Documentation
-
-Download the full **1,000-Experiment Biometric Benchmark Report (PDF)** included in the repository at:  
-`/Finomaly_Biometric_1000_Experiment_Report.pdf`
 
 ---
 

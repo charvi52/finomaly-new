@@ -341,7 +341,7 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted-foreground)', marginBottom: '0.35rem', fontFamily: 'JetBrains Mono, monospace' }}>
               IDENTITY ACCOUNT
             </label>
-            <input type="email" className="login-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="e.g. charvi@hackflux.io" autoComplete="email" />
+            <input type="email" className="login-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="e.g. charvi@example.com" autoComplete="email" />
           </div>
         </div>
 

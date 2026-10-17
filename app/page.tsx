@@ -271,7 +271,7 @@ export default function Home() {
         <div className="shell" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--border)', paddingBottom: 24, paddingTop: 20 }}>
           <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--primary)', display: 'inline-block' }} />
-            BUILT BY <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>&nbsp;TEAM HACKFLUX</span>
+            FINOMALY <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>&nbsp;// CONTINUOUS BEHAVIORAL BIOMETRICS</span>
           </p>
           <a href="#technology" style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--muted-foreground)', textDecoration: 'none' }}>
             SCROLL TO DECODE
@@ -389,49 +389,11 @@ export default function Home() {
               <p className="eyebrow">SMALL TEAM. NATIONAL AMBITION.</p>
               <h2 className="section-title">Built for a hackathon.<br /><span style={{ color: 'var(--muted-foreground)' }}>Thinking far beyond it.</span></h2>
               <p style={{ color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>
-                We&apos;re Team Hackflux. Three builders exploring one question: what if your natural physical behavior could serve as your authentic digital identity?
+                Three builders exploring one question: what if your natural physical behavior could serve as your authentic digital identity?
               </p>
               <p style={{ color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>
                 Next: algorithmic robustness reviews, cross-device testing, and privacy-first research. Our ambition is to build universal identity translation that bridges human presence and digital access seamlessly.
               </p>
-              <div style={{ marginTop: '0.5rem' }}>
-                <a
-                  href="/Finomaly_Biometric_1000_Experiment_Report.pdf"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.625rem',
-                    padding: '0.75rem 1.25rem',
-                    borderRadius: 10,
-                    border: '1px solid rgba(0, 245, 212, 0.4)',
-                    background: 'rgba(0, 245, 212, 0.08)',
-                    color: '#00f5d4',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    fontFamily: 'JetBrains Mono, monospace',
-                    textDecoration: 'none',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(0, 245, 212, 0.18)';
-                    e.currentTarget.style.borderColor = 'rgba(0, 245, 212, 0.7)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(0, 245, 212, 0.08)';
-                    e.currentTarget.style.borderColor = 'rgba(0, 245, 212, 0.4)';
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="12" y1="18" x2="12" y2="12" />
-                    <polyline points="9 15 12 18 15 15" />
-                  </svg>
-                  Read 1,000-Experiment Research Report (PDF)
-                </a>
-              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0 }}>
               {[
@@ -446,10 +408,10 @@ export default function Home() {
                     </span>
                     <div>
                       <h3 style={{ fontSize: '1.2rem', letterSpacing: '-0.02em', margin: 0 }}>{member.name}</h3>
-                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Co-creator · Team Hackflux</p>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Co-creator</p>
                     </div>
                   </div>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>HACKFLUX</span>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>CORE TEAM</span>
                 </div>
               ))}
             </div>
@@ -520,7 +482,7 @@ export default function Home() {
               </span>
             </a>
             <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', margin: 0 }}>
-              A research prototype by <strong style={{ color: 'var(--foreground)' }}>Team Hackflux</strong>. Only a numeric timing vector is sent to the server, never what you type. Closing the session erases it.
+              A research prototype for behavioral biometrics. Only a numeric timing vector is sent to the server, never what you type. Closing the session erases it.
             </p>
           </div>
         </div>
