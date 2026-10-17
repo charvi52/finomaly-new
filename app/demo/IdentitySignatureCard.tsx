@@ -6,7 +6,7 @@ import { RawVector, normaliseVector, generateSignatureId } from './biometrics';
 interface Props {
   label: string;
   sublabel?: string;
-  rawVector: RawVector;
+  rawVector?: RawVector | null;
   accentColor?: string;
   highlighted?: boolean;
 }
@@ -18,8 +18,21 @@ export default function IdentitySignatureCard({
   accentColor = '#00f5d4',
   highlighted = false,
 }: Props) {
-  const norm = useMemo(() => normaliseVector(rawVector), [rawVector]);
-  const sigId = useMemo(() => generateSignatureId(rawVector), [rawVector]);
+  const safeVector: RawVector = useMemo(() => {
+    if (!rawVector) {
+      return { avgHoldTime: 120, avgFlightTime: 100, wpm: 50, holdTimeVariance: 25, flightTimeVariance: 30 };
+    }
+    return {
+      avgHoldTime: Number.isFinite(rawVector.avgHoldTime) ? rawVector.avgHoldTime : 120,
+      avgFlightTime: Number.isFinite(rawVector.avgFlightTime) ? rawVector.avgFlightTime : 100,
+      wpm: Number.isFinite(rawVector.wpm) ? rawVector.wpm : 50,
+      holdTimeVariance: Number.isFinite(rawVector.holdTimeVariance) ? rawVector.holdTimeVariance : 25,
+      flightTimeVariance: Number.isFinite(rawVector.flightTimeVariance) ? rawVector.flightTimeVariance : 30,
+    };
+  }, [rawVector]);
+
+  const norm = useMemo(() => normaliseVector(safeVector), [safeVector]);
+  const sigId = useMemo(() => generateSignatureId(safeVector), [safeVector]);
 
   // Compute 5-axis polygon points centered at (90, 90), radius range 25 to 75
   const polygonPoints = useMemo(() => {
@@ -225,19 +238,19 @@ export default function IdentitySignatureCard({
         <div>
           <span style={{ fontSize: '0.6rem', color: 'var(--muted-foreground)', display: 'block' }}>HOLD DWELL</span>
           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e5eef0' }}>
-            {Math.round(rawVector.avgHoldTime)} <span style={{ fontSize: '0.65rem', color: accentColor }}>ms</span>
+            {Math.round(safeVector.avgHoldTime)} <span style={{ fontSize: '0.65rem', color: accentColor }}>ms</span>
           </span>
         </div>
         <div>
           <span style={{ fontSize: '0.6rem', color: 'var(--muted-foreground)', display: 'block' }}>FLIGHT GAP</span>
           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e5eef0' }}>
-            {Math.round(rawVector.avgFlightTime)} <span style={{ fontSize: '0.65rem', color: accentColor }}>ms</span>
+            {Math.round(safeVector.avgFlightTime)} <span style={{ fontSize: '0.65rem', color: accentColor }}>ms</span>
           </span>
         </div>
         <div>
           <span style={{ fontSize: '0.6rem', color: 'var(--muted-foreground)', display: 'block' }}>TYPING PACE</span>
           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e5eef0' }}>
-            {Math.round(rawVector.wpm)} <span style={{ fontSize: '0.65rem', color: accentColor }}>WPM</span>
+            {Math.round(safeVector.wpm)} <span style={{ fontSize: '0.65rem', color: accentColor }}>WPM</span>
           </span>
         </div>
       </div>

@@ -169,7 +169,15 @@ export function normaliseVector(raw: RawVector): NormVector {
 
 // ── Average multiple raw vectors ──────────────────────────────────────────────
 export function averageRawVectors(vectors: RawVector[]): RawVector {
-  if (!vectors.length) throw new Error('No vectors');
+  if (!vectors || !vectors.length) {
+    return {
+      avgHoldTime: 120,
+      avgFlightTime: 100,
+      wpm: 50,
+      holdTimeVariance: 25,
+      flightTimeVariance: 30,
+    };
+  }
   const keys: FeatureKey[] = ['avgHoldTime','avgFlightTime','wpm','holdTimeVariance','flightTimeVariance'];
   const result = {} as RawVector;
   for (const k of keys) {

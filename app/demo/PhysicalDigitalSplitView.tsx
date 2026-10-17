@@ -34,11 +34,16 @@ export default function PhysicalDigitalSplitView({
 }: Props) {
   // Recent keystrokes for waveform (last 18)
   const recentStrokes = useMemo(() => {
-    return keystrokes.slice(-18);
+    return (keystrokes || []).slice(-18);
   }, [keystrokes]);
 
   // Normalized vector fallback if still computing
-  const safeNorm = normVector || [0.45, 0.35, 0.5, 0.25, 0.2];
+  const safeNorm = useMemo(() => {
+    if (!normVector || !Array.isArray(normVector) || normVector.length !== 5) {
+      return [0.45, 0.35, 0.5, 0.25, 0.2] as NormVector;
+    }
+    return normVector.map(v => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.5)) as NormVector;
+  }, [normVector]);
 
   // Pipeline active step calculation
   const hasKey = Boolean(activeKey);
