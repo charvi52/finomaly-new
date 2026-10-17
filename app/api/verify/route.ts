@@ -12,6 +12,7 @@ import {
   EMA_ALPHA,
   RawVector,
   averageRawVectors,
+  ensureRawVector,
 } from '@/app/demo/biometrics';
 
 export const runtime = 'nodejs';
@@ -123,11 +124,12 @@ export async function POST(req: NextRequest) {
         );
       }
     } else {
-      baselineRaw =
+      const rawCandidate =
         profile.baseline.centroid ||
         (Array.isArray(profile.baseline.sessions) && profile.baseline.sessions.length > 0
           ? profile.baseline.sessions[0]
           : profile.baseline);
+      baselineRaw = ensureRawVector(rawCandidate);
     }
 
     const baselineNorm = normaliseVector(baselineRaw);

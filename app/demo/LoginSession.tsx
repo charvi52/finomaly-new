@@ -211,7 +211,7 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
 
       try {
         const verifyRes = await verifyPromise;
-        if (verifyRes && verifyRes.success && typeof verifyRes.score === 'number') {
+        if (verifyRes && verifyRes.success && typeof verifyRes.score === 'number' && Number.isFinite(verifyRes.score)) {
           finalSimilarity = verifyRes.score;
           if (verifyRes.featureDeltas) {
             finalFeatureDeltas = verifyRes.featureDeltas;

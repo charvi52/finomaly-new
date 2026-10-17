@@ -45,6 +45,28 @@ export function arrayToRawVector(arr: [number, number, number, number, number] |
   };
 }
 
+export function ensureRawVector(v: any): RawVector {
+  if (!v) {
+    return { avgHoldTime: 120, avgFlightTime: 100, wpm: 50, holdTimeVariance: 25, flightTimeVariance: 30 };
+  }
+  if (Array.isArray(v) && v.length === 5) {
+    return {
+      avgHoldTime: Number.isFinite(v[0]) && v[0] > 0 ? Number(v[0]) : 120,
+      avgFlightTime: Number.isFinite(v[1]) && v[1] > 0 ? Number(v[1]) : 100,
+      wpm: Number.isFinite(v[2]) && v[2] > 0 ? Number(v[2]) : 50,
+      holdTimeVariance: Number.isFinite(v[3]) && v[3] >= 0 ? Number(v[3]) : 25,
+      flightTimeVariance: Number.isFinite(v[4]) && v[4] >= 0 ? Number(v[4]) : 30,
+    };
+  }
+  return {
+    avgHoldTime: typeof v.avgHoldTime === 'number' && Number.isFinite(v.avgHoldTime) && v.avgHoldTime > 0 ? v.avgHoldTime : 120,
+    avgFlightTime: typeof v.avgFlightTime === 'number' && Number.isFinite(v.avgFlightTime) && v.avgFlightTime > 0 ? v.avgFlightTime : 100,
+    wpm: typeof v.wpm === 'number' && Number.isFinite(v.wpm) && v.wpm > 0 ? v.wpm : 50,
+    holdTimeVariance: typeof v.holdTimeVariance === 'number' && Number.isFinite(v.holdTimeVariance) && v.holdTimeVariance >= 0 ? v.holdTimeVariance : 25,
+    flightTimeVariance: typeof v.flightTimeVariance === 'number' && Number.isFinite(v.flightTimeVariance) && v.flightTimeVariance >= 0 ? v.flightTimeVariance : 30,
+  };
+}
+
 export function applyEmaUpdate(oldBaseline: RawVector, liveVector: RawVector, alpha: number = EMA_ALPHA): RawVector {
   const keys: (keyof RawVector)[] = ['avgHoldTime', 'avgFlightTime', 'wpm', 'holdTimeVariance', 'flightTimeVariance'];
   const res = {} as RawVector;
@@ -142,28 +164,30 @@ export function extractRawVector(params: {
   charCount: number;
 }): RawVector {
   const { keystrokes, flights, totalDurationMs, charCount } = params;
-  const holdTimes = keystrokes.map(k => k.holdTime);
-  const flightTimes = flights.map(f => f.flightTime);
-  const minutes = totalDurationMs / 60_000;
-  const wpm = minutes > 0 ? charCount / 5 / minutes : 0;
+  const holdTimes = (keystrokes || []).map(k => k.holdTime).filter(h => typeof h === 'number' && Number.isFinite(h) && h > 0);
+  const flightTimes = (flights || []).map(f => f.flightTime).filter(f => typeof f === 'number' && Number.isFinite(f) && f > 0);
+  const minutes = Math.max(0.01, (totalDurationMs || 3000) / 60_000);
+  const rawWpm = (charCount || 0) / 5 / minutes;
+  const wpm = Number.isFinite(rawWpm) && rawWpm > 0 ? rawWpm : 45;
 
   return {
-    avgHoldTime:        mean(holdTimes),
-    avgFlightTime:      mean(flightTimes),
+    avgHoldTime: holdTimes.length ? mean(holdTimes) : 120,
+    avgFlightTime: flightTimes.length ? mean(flightTimes) : 100,
     wpm,
-    holdTimeVariance:   stdDev(holdTimes),
-    flightTimeVariance: stdDev(flightTimes),
+    holdTimeVariance: holdTimes.length >= 2 ? stdDev(holdTimes) : 25,
+    flightTimeVariance: flightTimes.length >= 2 ? stdDev(flightTimes) : 30,
   };
 }
 
 // ── Normalise to 5-element vector ─────────────────────────────────────────────
 export function normaliseVector(raw: RawVector): NormVector {
+  const safe = ensureRawVector(raw);
   return [
-    normalise(raw.avgHoldTime,        'avgHoldTime'),
-    normalise(raw.avgFlightTime,      'avgFlightTime'),
-    normalise(raw.wpm,                'wpm'),
-    normalise(raw.holdTimeVariance,   'holdTimeVariance'),
-    normalise(raw.flightTimeVariance, 'flightTimeVariance'),
+    normalise(safe.avgHoldTime,        'avgHoldTime'),
+    normalise(safe.avgFlightTime,      'avgFlightTime'),
+    normalise(safe.wpm,                'wpm'),
+    normalise(safe.holdTimeVariance,   'holdTimeVariance'),
+    normalise(safe.flightTimeVariance, 'flightTimeVariance'),
   ];
 }
 
@@ -362,11 +386,13 @@ export function accuracyLabel(pct: number): { label: string; color: string } {
 
 // ── Plain-language readout generator ───────────────────────────────────────────
 export function generatePlainLanguageReadout(
-  baseline: RawVector,
-  live: RawVector,
+  baselineRaw: RawVector,
+  liveRaw: RawVector,
   deltas: FeatureDelta[],
   score?: number
 ): string[] {
+  const baseline = ensureRawVector(baselineRaw);
+  const live = ensureRawVector(liveRaw);
   const readouts: string[] = [];
 
   // WPM analysis

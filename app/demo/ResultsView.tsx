@@ -12,6 +12,7 @@ import {
   averageRawVectors,
   normaliseVector,
   generatePlainLanguageReadout,
+  ensureRawVector,
 } from './biometrics';
 import IdentitySignatureCard from './IdentitySignatureCard';
 
@@ -98,17 +99,18 @@ function FeatureBars({ base, live }: { base: NormVector; live: NormVector }) {
 
 // ── Keystroke hold-time chart ──────────────────────────────────────────────────
 function HoldTimeChart({ keystrokes, avgBase }: { keystrokes: KeystrokeEvent[]; avgBase: number }) {
-  const pts = keystrokes.filter(k => k.holdTime > 0 && k.holdTime < 600);
+  const safeAvg = Number.isFinite(avgBase) && avgBase > 0 ? avgBase : 120;
+  const pts = (keystrokes || []).filter(k => k && typeof k.holdTime === 'number' && Number.isFinite(k.holdTime) && k.holdTime > 0 && k.holdTime < 600);
   if (pts.length < 4) return <p style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)' }}>Not enough keystroke data.</p>;
 
-  const maxH = Math.max(...pts.map(k => k.holdTime), 2 * avgBase, 200);
+  const maxH = Math.max(...pts.map(k => k.holdTime), 2 * safeAvg, 200);
   const polyline = pts.map((k, i) => `${((pts.length > 1 ? i / (pts.length - 1) : 0.5) * 440).toFixed(1)},${(80 - k.holdTime / maxH * 80).toFixed(1)}`).join(' ');
-  const baseLine = 80 - avgBase / maxH * 80;
+  const baseLine = 80 - safeAvg / maxH * 80;
 
   return (
     <div>
       <p style={{ fontSize: '0.72rem', fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted-foreground)', marginBottom: '0.4rem' }}>
-        HOLD TIME PER KEYSTROKE (ms) — baseline avg: {Math.round(avgBase)}ms
+        HOLD TIME PER KEYSTROKE (ms) — baseline avg: {Math.round(safeAvg)}ms
       </p>
       <svg width="100%" viewBox="0 0 440 102" style={{ overflow: 'visible' }}>
         {[0, 0.25, 0.5, 0.75, 1].map(v => (
@@ -175,19 +177,20 @@ export default function ResultsView({
   const band = scoreToBand(similarity);
   const bandColor = band === 'match' ? '#00f5d4' : band === 'rushed' ? '#ffa500' : '#ff4444';
 
-  const baselineRaw = averageRawVectors(baselineSessions);
-  const bNorm = normaliseVector(baselineRaw);
+  const baselineRaw = useMemo(() => ensureRawVector(averageRawVectors(baselineSessions)), [baselineSessions]);
+  const safeLive = useMemo(() => ensureRawVector(liveVector), [liveVector]);
+  const bNorm = useMemo(() => normaliseVector(baselineRaw), [baselineRaw]);
   const lNorm = liveNorm;
 
   const readouts = useMemo(() => {
-    return generatePlainLanguageReadout(baselineRaw, liveVector, featureDeltas, similarity);
-  }, [baselineRaw, liveVector, featureDeltas, similarity]);
+    return generatePlainLanguageReadout(baselineRaw, safeLive, featureDeltas, similarity);
+  }, [baselineRaw, safeLive, featureDeltas, similarity]);
 
   // Raw values for display
   const rawPairs = [
-    { l: 'WPM',         v: Math.round(liveVector.wpm),            b: Math.round(baselineRaw.wpm),            u: 'wpm' },
-    { l: 'HOLD TIME',   v: Math.round(liveVector.avgHoldTime),    b: Math.round(baselineRaw.avgHoldTime),    u: 'ms' },
-    { l: 'FLIGHT TIME', v: Math.round(liveVector.avgFlightTime),  b: Math.round(baselineRaw.avgFlightTime),  u: 'ms' },
+    { l: 'WPM',         v: Math.round(safeLive.wpm),            b: Math.round(baselineRaw.wpm),            u: 'wpm' },
+    { l: 'HOLD TIME',   v: Math.round(safeLive.avgHoldTime),    b: Math.round(baselineRaw.avgHoldTime),    u: 'ms' },
+    { l: 'FLIGHT TIME', v: Math.round(safeLive.avgFlightTime),  b: Math.round(baselineRaw.avgFlightTime),  u: 'ms' },
   ];
 
   const TABS: { id: Tab; label: string }[] = [
