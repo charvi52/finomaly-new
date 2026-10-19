@@ -15,7 +15,6 @@ import {
   computeFeatureDeltas,
   hybridSimilarity,
   wordCount,
-  ensureRawVector,
 } from '@/app/demo/biometrics';
 import { verifySessionApi } from '@/lib/apiClient';
 import FlatRadarChart from '@/components/FlatRadarChart';
@@ -203,7 +202,7 @@ export default function ChallengePage() {
   };
 
   const baselineRaw = useMemo(() => {
-    return personAVectors.length > 0 ? ensureRawVector(averageRawVectors(personAVectors)) : null;
+    return personAVectors.length > 0 ? averageRawVectors(personAVectors) : null;
   }, [personAVectors]);
 
   return (

@@ -17,7 +17,6 @@ import {
   scoreToBand,
   wordCount,
   FEATURE_NAMES,
-  ensureRawVector,
 } from './biometrics';
 import { enrollSessionApi, verifySessionApi } from '@/lib/apiClient';
 import FlatRadarChart from '@/components/FlatRadarChart';
@@ -229,7 +228,7 @@ export default function DemoPage() {
   };
 
   const baselineRaw = useMemo(() => {
-    return baselineSessions.length > 0 ? ensureRawVector(averageRawVectors(baselineSessions)) : null;
+    return baselineSessions.length > 0 ? averageRawVectors(baselineSessions) : null;
   }, [baselineSessions]);
 
   return (
