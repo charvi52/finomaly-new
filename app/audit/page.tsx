@@ -1,48 +1,55 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { getDemoUserId } from '@/lib/apiClient';
-import AuditAnalysisModal, { AuditLogData } from './AuditAnalysisModal';
+import Footer from '@/components/Footer';
 
-const SAMPLE_DEMO_LOG: AuditLogData = {
-  id: 'a7b8c9d0-demo-telemetry-sample',
-  user_id: 'ephemeral-demo-user-7f8a',
-  score: 0.91,
-  band: 'match',
-  features: {
-    baselineVector: [115, 95, 58, 22, 28],
-    liveVector: [122, 91, 62, 24, 30],
-  },
-  flags: {
-    pasteDetected: false,
-    botSuspected: false,
-  },
-  created_at: new Date().toISOString(),
-};
+export interface AuditRecord {
+  id: string;
+  user_id: string;
+  score: number;
+  band: string;
+  features?: {
+    liveVector?: number[];
+    baselineVector?: number[];
+  };
+  flags?: {
+    pasteDetected?: boolean;
+    botSuspected?: boolean;
+  };
+  created_at: string;
+}
 
 export default function AuditPage() {
-  const [userId, setUserId] = useState('');
-  const [filterMode, setFilterMode] = useState<'session' | 'all'>('session');
-  const [logs, setLogs] = useState<AuditLogData[]>([]);
-  const [selectedLog, setSelectedLog] = useState<AuditLogData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [logs, setLogs] = useState<AuditRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState('');
+  const [selectedRecord, setSelectedRecord] = useState<AuditRecord | null>(null);
+
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [bandFilter, setBandFilter] = useState<'all' | 'match' | 'rushed' | 'anomaly'>('all');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   useEffect(() => {
     const currentId = getDemoUserId();
     setUserId(currentId);
-    fetchAuditLogs(currentId);
+    fetchAuditLogs();
   }, []);
 
-  const fetchAuditLogs = useCallback(async (targetUserId: string, mode: 'session' | 'all' = 'session') => {
+  const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    const queryId = mode === 'all' ? 'all' : targetUserId.trim();
-
     try {
-      const res = await fetch(`/api/audit?userId=${encodeURIComponent(queryId || 'all')}`, {
+      // Query demo audit endpoint
+      const res = await fetch(`/api/audit?userId=all`, {
         headers: {
           'x-api-key': process.env.NEXT_PUBLIC_DEMO_KEY || 'finomaly_demo_secret_2026_x8k9',
         },
@@ -54,7 +61,7 @@ export default function AuditPage() {
       }
 
       const data = await res.json();
-      setLogs(data.logs || []);
+      setLogs(Array.isArray(data.logs) ? data.logs : []);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load audit logs';
       setError(msg);
@@ -64,318 +71,333 @@ export default function AuditPage() {
     }
   }, []);
 
-  const getBandBadge = (band: string) => {
-    const b = band.toLowerCase();
-    if (b === 'match') {
-      return (
-        <span style={{
-          padding: '3px 8px', borderRadius: 4,
-          fontSize: '0.72rem', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace',
-          background: 'rgba(0, 245, 212, 0.1)', color: '#00f5d4', border: '1px solid rgba(0, 245, 212, 0.3)'
-        }}>
-          MATCH
-        </span>
+  // Format time (local + relative)
+  const formatTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      const local = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      let relative = '';
+      if (diffMins < 1) relative = 'just now';
+      else if (diffMins < 60) relative = `${diffMins}m ago`;
+      else {
+        const diffHours = Math.floor(diffMins / 60);
+        relative = `${diffHours}h ago`;
+      }
+      return { local, relative };
+    } catch {
+      return { local: '—', relative: '—' };
+    }
+  };
+
+  // Filtered and sorted logs
+  const filteredLogs = useMemo(() => {
+    let result = [...logs];
+
+    // Filter by band
+    if (bandFilter !== 'all') {
+      result = result.filter((r) => r.band?.toLowerCase() === bandFilter);
+    }
+
+    // Search query (matches ID, user_id, band)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (r) =>
+          r.id?.toLowerCase().includes(q) ||
+          r.user_id?.toLowerCase().includes(q) ||
+          r.band?.toLowerCase().includes(q)
       );
+    }
+
+    // Sort by timestamp
+    result.sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+    });
+
+    return result;
+  }, [logs, bandFilter, searchQuery, sortOrder]);
+
+  // Paginated records
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const renderBandChip = (band: string) => {
+    const b = band?.toLowerCase();
+    if (b === 'match') {
+      return <span className="chip chip-success">Match</span>;
     }
     if (b === 'rushed') {
-      return (
-        <span style={{
-          padding: '3px 8px', borderRadius: 4,
-          fontSize: '0.72rem', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace',
-          background: 'rgba(255, 165, 0, 0.1)', color: '#ffa500', border: '1px solid rgba(255, 165, 0, 0.3)'
-        }}>
-          RUSHED
-        </span>
-      );
+      return <span className="chip chip-warning">Rushed</span>;
     }
-    return (
-      <span style={{
-        padding: '3px 8px', borderRadius: 4,
-        fontSize: '0.72rem', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace',
-        background: 'rgba(255, 68, 68, 0.1)', color: '#ff4444', border: '1px solid rgba(255, 68, 68, 0.3)'
-      }}>
-        ANOMALY
-      </span>
-    );
+    return <span className="chip chip-danger">Anomaly</span>;
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#080c0d', color: '#f0f4f5', padding: '2rem 1.5rem' }}>
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        {/* Navigation header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+    <>
+      <main className="container" style={{ paddingTop: '40px', paddingBottom: '72px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
           <div>
-            <Link href="/" style={{ color: 'var(--muted-foreground)', textDecoration: 'none', fontSize: '0.82rem', fontFamily: 'JetBrains Mono, monospace' }}>
-              ← Return to Finomaly Home
-            </Link>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              Verification Audit Log
-              <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(0,245,212,0.1)', color: '#00f5d4', border: '1px solid rgba(0,245,212,0.3)', fontFamily: 'JetBrains Mono, monospace' }}>
-                IMMUTABLE
-              </span>
-            </h1>
-          </div>
-          <button
-            onClick={() => fetchAuditLogs(userId)}
-            style={{
-              padding: '0.5rem 1rem', borderRadius: 8,
-              border: '1px solid rgba(0,245,212,0.3)', background: 'rgba(0,245,212,0.08)',
-              color: '#00f5d4', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem',
-            }}
-          >
-            {loading ? 'Refreshing…' : '↻ Refresh'}
-          </button>
-        </div>
-
-        {/* User ID lookup bar & Filter mode toggle */}
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.625rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontFamily: 'JetBrains Mono, monospace' }}>
-              TELEMETRY AUDIT SOURCE
-            </label>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setFilterMode('session');
-                  fetchAuditLogs(userId, 'session');
-                }}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: 6,
-                  border: filterMode === 'session' ? '1px solid #00f5d4' : '1px solid var(--border)',
-                  background: filterMode === 'session' ? 'rgba(0,245,212,0.1)' : 'transparent',
-                  color: filterMode === 'session' ? '#00f5d4' : 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  transition: 'all 0.2s',
-                }}
-              >
-                My Session
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFilterMode('all');
-                  fetchAuditLogs('all', 'all');
-                }}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: 6,
-                  border: filterMode === 'all' ? '1px solid #00f5d4' : '1px solid var(--border)',
-                  background: filterMode === 'all' ? 'rgba(0,245,212,0.1)' : 'transparent',
-                  color: filterMode === 'all' ? '#00f5d4' : 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  transition: 'all 0.2s',
-                }}
-              >
-                All System Audits
-              </button>
-            </div>
+            <span className="small text-muted" style={{ display: 'block', marginBottom: '6px' }}>
+              Operations & compliance
+            </span>
+            <h1 style={{ marginBottom: '6px' }}>Audit log</h1>
+            <p className="body-text text-muted">
+              Live telemetry records captured from demo and challenge verification sessions.
+            </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input
-              type="text"
-              value={filterMode === 'all' ? 'ALL_SYSTEM_AUDITS (Latest 20 across all demo sessions)' : userId}
-              disabled={filterMode === 'all'}
-              onChange={e => setUserId(e.target.value)}
-              placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
-              style={{
-                flex: 1, padding: '0.5rem 0.75rem', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--background)',
-                color: filterMode === 'all' ? 'var(--muted-foreground)' : '#00f5d4',
-                fontFamily: 'JetBrains Mono, monospace', fontSize: '0.85rem',
-              }}
-            />
-            <button
-              onClick={() => fetchAuditLogs(userId, filterMode)}
-              style={{
-                padding: '0.5rem 1rem', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--secondary)',
-                color: 'var(--foreground)', cursor: 'pointer', fontSize: '0.8rem',
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            >
-              Lookup
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button type="button" className="btn btn-secondary small" onClick={fetchAuditLogs} disabled={loading}>
+              {loading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
-          <p style={{ margin: '0.5rem 0 0', fontSize: '0.72rem', color: 'var(--muted-foreground)' }}>
-            Each demo session uses an anonymous ephemeral UUID. Typed text is never transmitted or logged.
-          </p>
         </div>
 
-        {/* Error notification */}
+        {/* Filter bar */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '600px' }}>
+            <input
+              type="search"
+              placeholder="Search session ID or user..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              style={{ maxWidth: '280px' }}
+            />
+
+            <select
+              value={bandFilter}
+              onChange={(e) => {
+                setBandFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              style={{ width: 'auto' }}
+            >
+              <option value="all">All bands</option>
+              <option value="match">Match</option>
+              <option value="rushed">Rushed</option>
+              <option value="anomaly">Anomaly</option>
+            </select>
+
+            <button
+              type="button"
+              className="btn btn-secondary small"
+              onClick={() => setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}
+            >
+              Time: {sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}
+            </button>
+          </div>
+
+          <div className="small text-muted num-tabular">
+            {filteredLogs.length} {filteredLogs.length === 1 ? 'record' : 'records'} found
+          </div>
+        </div>
+
+        {/* Error message */}
         {error && (
-          <div style={{ padding: '0.875rem 1rem', borderRadius: 8, background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.3)', color: '#ff6b35', fontSize: '0.85rem', marginBottom: '1.5rem', fontFamily: 'JetBrains Mono, monospace' }}>
-            {error} (Backend database not reachable or no audit logs for this user yet)
+          <div style={{ background: 'var(--danger-light)', border: '1px solid #F3BCC4', color: 'var(--danger)', padding: '12px 16px', borderRadius: '4px', marginBottom: '16px', fontSize: '0.875rem' }}>
+            Could not fetch audit records: {error}. Check backend connection or try refreshing.
           </div>
         )}
 
-        {/* Audit log table */}
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted-foreground)' }}>
-              {filterMode === 'all' ? 'LATEST 20 SYSTEM-WIDE VERIFICATION ATTEMPTS' : 'MY RECENT VERIFICATION ATTEMPTS'}
-            </span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontFamily: 'JetBrains Mono, monospace' }}>
-              {logs.length} RECORD{logs.length === 1 ? '' : 'S'}
-            </span>
-          </div>
-
-          {logs.length === 0 ? (
-            <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--muted-foreground)' }}>
-              <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.9rem', margin: 0 }}>
-                {loading ? 'Querying encrypted audit records…' : 'No verification attempts logged yet for this session.'}
-              </p>
-              <p style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
-                Complete an authentication session from the home page, or switch to view all system audits.
-              </p>
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '0.85rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedLog(SAMPLE_DEMO_LOG)}
-                  style={{
-                    padding: '0.45rem 1rem',
-                    borderRadius: 6,
-                    border: '1px solid rgba(0,245,212,0.6)',
-                    background: 'rgba(0,245,212,0.12)',
-                    color: '#00f5d4',
-                    cursor: 'pointer',
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  ◈ Preview Sample Visual Analysis ↗
-                </button>
-                {filterMode === 'session' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilterMode('all');
-                      fetchAuditLogs('all', 'all');
-                    }}
-                    style={{
-                      padding: '0.45rem 1rem',
-                      borderRadius: 6,
-                      border: '1px solid rgba(255,255,255,0.15)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: 'var(--muted-foreground)',
-                      cursor: 'pointer',
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: '0.75rem',
-                    }}
-                  >
-                    View All Recent System Audits ↗
-                  </button>
+        {/* Main Content Layout (Table + Side Panel) */}
+        <div style={{ display: 'grid', gridTemplateColumns: selectedRecord ? '1fr 340px' : '1fr', gap: '20px', alignItems: 'start' }}>
+          {/* Operations Table */}
+          <div className="table-wrapper">
+            <table className="fin-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '180px' }}>Time</th>
+                  <th>Session ID</th>
+                  <th>Score</th>
+                  <th>Band</th>
+                  <th>Flags</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Loading skeleton state */}
+                {loading && (
+                  <>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <tr key={i}>
+                        <td><div className="skeleton" style={{ height: '16px', width: '120px' }} /></td>
+                        <td><div className="skeleton" style={{ height: '16px', width: '90px' }} /></td>
+                        <td><div className="skeleton" style={{ height: '16px', width: '50px' }} /></td>
+                        <td><div className="skeleton" style={{ height: '16px', width: '60px' }} /></td>
+                        <td><div className="skeleton" style={{ height: '16px', width: '40px' }} /></td>
+                        <td><div className="skeleton" style={{ height: '16px', width: '60px' }} /></td>
+                      </tr>
+                    ))}
+                  </>
                 )}
-              </div>
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted-foreground)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem' }}>
-                    <th style={{ padding: '0.75rem 1rem' }}>TIMESTAMP</th>
-                    <th style={{ padding: '0.75rem 1rem' }}>SCORE</th>
-                    <th style={{ padding: '0.75rem 1rem' }}>BAND</th>
-                    <th style={{ padding: '0.75rem 1rem' }}>FLAGS</th>
-                    <th style={{ padding: '0.75rem 1rem' }}>LOG ID</th>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ANALYSIS</th>
+
+                {/* Empty state (No fake sample rows) */}
+                {!loading && filteredLogs.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                      <p className="text-muted" style={{ marginBottom: '12px' }}>
+                        No attempts yet. Run the demo to create one.
+                      </p>
+                      <Link href="/demo" className="btn btn-primary small">
+                        Go to demo
+                      </Link>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {logs.map(log => {
-                    const dateStr = new Date(log.created_at).toLocaleString();
-                    const scorePct = `${Math.round(Number(log.score) * 100)}%`;
-                    const hasPaste = Boolean(log.flags?.pasteDetected);
-                    const hasBot = Boolean(log.flags?.botSuspected);
+                )}
+
+                {/* Real Log rows */}
+                {!loading &&
+                  paginatedLogs.map((row) => {
+                    const { local, relative } = formatTime(row.created_at);
+                    const isSelected = selectedRecord?.id === row.id;
+                    const flagsCount = (row.flags?.pasteDetected ? 1 : 0) + (row.flags?.botSuspected ? 1 : 0);
+                    const shortId = row.id ? row.id.slice(0, 8) : '—';
 
                     return (
-                      <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', fontFamily: 'JetBrains Mono, monospace' }}>
-                        <td style={{ padding: '0.875rem 1rem', color: 'var(--muted-foreground)', fontSize: '0.78rem' }}>
-                          {dateStr}
+                      <tr
+                        key={row.id}
+                        className={`clickable ${isSelected ? 'selected' : ''}`}
+                        onClick={() => setSelectedRecord(row)}
+                      >
+                        <td>
+                          <span className="num-tabular" style={{ fontWeight: 500 }}>{local}</span>
+                          <span className="small text-muted" style={{ display: 'block' }}>{relative}</span>
                         </td>
-                        <td style={{ padding: '0.875rem 1rem', fontWeight: 700, color: '#f0f4f5' }}>
-                          {scorePct}
+                        <td>
+                          <span className="mono-id">{shortId}</span>
                         </td>
-                        <td style={{ padding: '0.875rem 1rem' }}>
-                          {getBandBadge(log.band)}
+                        <td>
+                          <span className="num-tabular" style={{ fontWeight: 600 }}>
+                            {(row.score * 100).toFixed(1)}%
+                          </span>
                         </td>
-                        <td style={{ padding: '0.875rem 1rem' }}>
-                          {hasPaste || hasBot ? (
-                            <span style={{ color: '#ff6b35', fontSize: '0.75rem' }}>
-                              {hasPaste ? 'PASTE_INTERCEPT ' : ''}
-                              {hasBot ? 'BOT_DETECTED' : ''}
-                            </span>
+                        <td>{renderBandChip(row.band)}</td>
+                        <td>
+                          {flagsCount > 0 ? (
+                            <span className="chip chip-danger">{flagsCount} flagged</span>
                           ) : (
-                            <span style={{ color: 'var(--muted-foreground)', fontSize: '0.75rem' }}>None</span>
+                            <span className="text-muted small">None</span>
                           )}
                         </td>
-                        <td style={{ padding: '0.875rem 1rem', color: 'var(--muted-foreground)', fontSize: '0.72rem' }}>
-                          {log.id.slice(0, 8)}…
-                        </td>
-                        <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLog(log)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              padding: '5px 12px',
-                              borderRadius: 6,
-                              border: '1px solid rgba(0, 245, 212, 0.4)',
-                              background: 'rgba(0, 245, 212, 0.08)',
-                              color: '#00f5d4',
-                              fontFamily: 'JetBrains Mono, monospace',
-                              fontSize: '0.74rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.background = 'rgba(0, 245, 212, 0.18)';
-                              e.currentTarget.style.borderColor = '#00f5d4';
-                              e.currentTarget.style.boxShadow = '0 0 12px rgba(0,245,212,0.3)';
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.background = 'rgba(0, 245, 212, 0.08)';
-                              e.currentTarget.style.borderColor = 'rgba(0, 245, 212, 0.4)';
-                              e.currentTarget.style.boxShadow = 'none';
-                            }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                            <span>See Analysis</span>
-                            <span style={{ fontSize: '0.8rem' }}>↗</span>
-                          </button>
+                        <td>
+                          <span className="small text-muted">
+                            {row.user_id?.startsWith('ephemeral') ? 'Demo' : 'API'}
+                          </span>
                         </td>
                       </tr>
                     );
                   })}
-                </tbody>
-              </table>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Side Panel for Selected Record */}
+          {selectedRecord && (
+            <div className="panel" style={{ padding: '20px', position: 'sticky', top: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+                <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Record details</span>
+                <button
+                  type="button"
+                  className="btn btn-text small"
+                  onClick={() => setSelectedRecord(null)}
+                  style={{ padding: '0 4px', color: 'var(--text-muted)' }}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.8125rem' }}>
+                <div>
+                  <div className="text-muted small">Session ID</div>
+                  <div className="mono-id" style={{ wordBreak: 'break-all' }}>{selectedRecord.id}</div>
+                </div>
+
+                <div>
+                  <div className="text-muted small">User ID</div>
+                  <div className="mono-id">{selectedRecord.user_id}</div>
+                </div>
+
+                <div>
+                  <div className="text-muted small">Recorded at</div>
+                  <div>{new Date(selectedRecord.created_at).toLocaleString()}</div>
+                </div>
+
+                <div>
+                  <div className="text-muted small">Score & band</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '1.1rem' }} className="num-tabular">
+                      {(selectedRecord.score * 100).toFixed(1)}%
+                    </span>
+                    {renderBandChip(selectedRecord.band)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-muted small">Security flags</div>
+                  <div style={{ marginTop: '4px' }}>
+                    {selectedRecord.flags?.pasteDetected && (
+                      <div className="chip chip-danger" style={{ marginBottom: '4px' }}>Paste detected</div>
+                    )}
+                    {selectedRecord.flags?.botSuspected && (
+                      <div className="chip chip-danger">Bot pattern suspected</div>
+                    )}
+                    {!selectedRecord.flags?.pasteDetected && !selectedRecord.flags?.botSuspected && (
+                      <div className="text-muted">No security flags triggered</div>
+                    )}
+                  </div>
+                </div>
+
+                {selectedRecord.features?.liveVector && (
+                  <div>
+                    <div className="text-muted small" style={{ marginBottom: '6px' }}>5D Feature vector</div>
+                    <div style={{ background: '#FAF9FD', padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--border-subtle)', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                      [{selectedRecord.features.liveVector.map((v) => Math.round(v)).join(', ')}]
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Visual Analysis Modal */}
-        {selectedLog && (
-          <AuditAnalysisModal
-            log={selectedLog}
-            onClose={() => setSelectedLog(null)}
-          />
+        {/* Pagination bar */}
+        {filteredLogs.length > pageSize && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+            <span className="small text-muted num-tabular">
+              Page {currentPage} of {totalPages}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary small"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary small"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
-      </div>
-    </div>
+      </main>
+
+      <Footer />
+    </>
   );
 }

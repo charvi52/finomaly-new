@@ -1,492 +1,193 @@
-'use client';
+import Link from 'next/link';
+import Footer from '@/components/Footer';
 
-import { useEffect, useRef, useState } from 'react';
-import DemoModal from './demo/DemoModal';
-import ImposterChallengeModal from './demo/ImposterChallengeModal';
-import HowItWorksAnimation from './demo/HowItWorksAnimation';
+export const metadata = {
+  title: 'Finomaly — Behavioral Biometrics Prototype',
+  description: 'An auxiliary verification signal based on typing rhythm.',
+};
 
-// ── Fingerprint logo SVG paths ────────────────────────────────────────────────
-const FP_PATHS = [
-  'M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4',
-  'M14 13.12c0 2.38 0 6.38-1 8.88',
-  'M17.29 21.02c.12-.6.43-2.3.5-3.02',
-  'M2 12a10 10 0 0 1 18-6',
-  'M2 16h.01',
-  'M21.8 16c.2-2 .131-5.354 0-6',
-  'M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2',
-  'M8.65 22c.21-.66.45-1.32.57-2',
-  'M9 6.8a6 6 0 0 1 9 5.2v2',
-];
-
-function FingerprintIcon({ size = 32, color = 'var(--primary)', weight = 1.6 }: { size?: number; color?: string; weight?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {FP_PATHS.map((d, i) => <path key={i} d={d} />)}
-    </svg>
-  );
-}
-
-// ── Intro scanner overlay ──────────────────────────────────────────────────────
-function ScannerOverlay({ onDismiss }: { onDismiss: () => void }) {
-  const [dismissed, setDismissed] = useState(false);
-  const [statusIdx, setStatusIdx] = useState(0);
-  const STATUS = ['Initializing identity layer', 'Loading behavioral engine', 'System ready'];
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setStatusIdx(1), 1200);
-    const t2 = setTimeout(() => setStatusIdx(2), 2500);
-    const t3 = setTimeout(() => dismiss(), 3800);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, []); // eslint-disable-line
-
-  function dismiss() {
-    setDismissed(true);
-    setTimeout(onDismiss, 600);
-  }
-
-  return (
-    <div
-      className={`scanner-overlay${dismissed ? ' dismissed' : ''}`}
-      role="dialog" aria-modal="true" aria-label="Finomaly introductory animation"
-    >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, position: 'absolute', top: '2rem', left: '50%', transform: 'translateX(-50%)' }}>
-        <FingerprintIcon size={32} />
-        <span style={{ fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.055em' }}>
-          finomaly<span style={{ color: 'var(--primary)' }}>.</span>
-        </span>
-      </span>
-
-      <div className="scanner-assembly" aria-hidden="true">
-        <div className="scanner-ring" />
-        <div className="scanner-ring inner" />
-        {/* crosshairs */}
-        {[{side:'left',x:-14},{side:'right',x:'auto',right:-14}].map((pos,i) => (
-          <svg key={i} style={{ position:'absolute', [pos.side]:pos.x, top:'50%', transform:'translateY(-50%)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(0,245,212,0.5)" strokeWidth="2">
-            <path d="M5 12h14"/><path d="M12 5v14"/>
-          </svg>
-        ))}
-        {/* hand icon */}
-        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(240,244,245,0.6)' }} aria-hidden="true">
-          <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/>
-          <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/>
-          <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/>
-          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
-        </svg>
-        <div className="scanner-laser" />
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} role="status">
-        <p className="eyebrow">{STATUS[statusIdx]}</p>
-        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
-          Intro animation · no biometric scan performed
-        </p>
-      </div>
-
-      <button
-        autoFocus
-        onClick={dismiss}
-        style={{ position: 'absolute', bottom: '2.5rem', padding: '0.5rem 1.25rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--muted-foreground)', cursor: 'pointer', fontSize: '0.875rem' }}
-      >
-        Skip intro
-      </button>
-    </div>
-  );
-}
-
-// ── FAQ item ──────────────────────────────────────────────────────────────────
-function FaqItem({ q, a }: { q: string; a: string }) {
-  return (
-    <details className="faq-item" style={{ borderBottom: '1px solid var(--border)' }}>
-      <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, padding: '1.5rem 0', fontSize: '1rem', fontWeight: 500, cursor: 'pointer' }}>
-        {q}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2" style={{ flexShrink: 0 }}>
-          <path d="M5 12h14"/><path d="M12 5v14"/>
-        </svg>
-      </summary>
-      <p style={{ paddingBottom: '1.5rem', paddingRight: '2rem', fontSize: '0.9rem', color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>{a}</p>
-    </details>
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [introDone, setIntroDone] = useState(false);
-
   return (
     <>
-      {!introDone && <ScannerOverlay onDismiss={() => setIntroDone(true)} />}
-
-      {/* Skip to content */}
-      <a href="#main" style={{ position: 'fixed', left: 4, top: 4, zIndex: 50, background: 'var(--primary)', color: '#080c0d', padding: '0.75rem 1rem', borderRadius: 6, transform: 'translateY(-200%)', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none', transition: 'transform 0.2s' }}
-        onFocus={e => (e.currentTarget.style.transform = 'translateY(0)')}
-        onBlur={e => (e.currentTarget.style.transform = 'translateY(-200%)')}
-      >Skip to content</a>
-
-      {/* ── HEADER ── */}
-      <header style={{ position: 'relative', zIndex: 20, borderBottom: '1px solid var(--border)', background: 'rgba(8,12,13,0.9)', backdropFilter: 'blur(8px)' }}>
-        <div className="shell" style={{ display: 'flex', height: 88, alignItems: 'center', justifyContent: 'space-between' }}>
-          <a href="#" aria-label="Finomaly home" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <FingerprintIcon size={32} />
-              <span style={{ fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.055em' }}>
-                finomaly<span style={{ color: 'var(--primary)' }}>.</span>
-              </span>
+      <main className="container" style={{ paddingTop: '56px', paddingBottom: '72px' }}>
+        {/* ── Two-Column Header ── */}
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '48px', alignItems: 'center' }}>
+          <div>
+            <span className="small text-muted" style={{ display: 'block', marginBottom: '12px', fontWeight: 500 }}>
+              Research prototype · Keystroke dynamics
             </span>
-          </a>
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
-            {[['#technology','The technology'],['#architecture','How it works'],['#mission','Our mission']].map(([href, label]) => (
-              <a key={href} href={href} style={{ color: 'var(--muted-foreground)', textDecoration: 'none', fontSize: '0.875rem', transition: 'color 0.2s' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--foreground)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted-foreground)')}
-              >{label}</a>
-            ))}
-            <a
-              href="/audit"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 12px',
-                borderRadius: 6,
-                border: '1px solid rgba(0,245,212,0.4)',
-                background: 'rgba(0,245,212,0.06)',
-                color: '#00f5d4',
-                textDecoration: 'none',
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,245,212,0.15)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,245,212,0.06)')}
-            >
-              <span className="status-dot" style={{ width: 6, height: 6 }} />
-              AUDIT LOGS
-            </a>
-          </nav>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="status-dot" />SYSTEM ONLINE
-          </span>
-        </div>
-      </header>
-
-      <main id="main">
-        {/* ── HERO ── */}
-        <section className="shell" style={{ display: 'grid', alignItems: 'center', gridTemplateColumns: '1.1fr 1fr', gap: '2rem', paddingTop: '4rem', paddingBottom: '4rem' }} aria-label="Hero">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="status-dot" />
-              <span className="eyebrow">HACKATHON 2026 // BRIDGE THE GAP</span>
-            </div>
-            <h1 className="hero-title">
-              TRANSLATE<br />HUMAN <span style={{ color: 'var(--primary)' }}>RHYTHM</span><span style={{ color: 'var(--primary)' }}>.</span>
+            <h1 style={{ marginBottom: '16px', fontSize: '2.1rem' }}>
+              Credentials prove someone has access. They cannot prove who is typing.
             </h1>
-            <p style={{ maxWidth: 460, color: 'var(--muted-foreground)', fontSize: '1.05rem', lineHeight: 1.65, margin: 0 }}>
-              Online systems only see passwords and OTPs—they cannot see who is physically there.<br /><br />
-              Finomaly acts as a <strong style={{ color: '#00f5d4' }}>real-time translator</strong>: bridging the physical-digital divide by converting human muscle memory into an authentic digital identity signal.
+            <p className="body-text text-muted" style={{ marginBottom: '28px', maxWidth: '520px' }}>
+              Finomaly samples dwell time, flight interval, and cadence variance during normal typing. It compares them against an enrolled profile to flag anomalous sessions before transactions execute.
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-              <DemoModal />
-              <ImposterChallengeModal />
-            </div>
-            <div>
-              <HowItWorksAnimation />
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
-              {[
-                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>, label: 'Continuous authentication' },
-                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2"><circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg>, label: 'Privacy by design' },
-              ].map(({ icon, label }) => (
-                <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{icon}{label}</span>
-              ))}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+              <Link href="/demo" className="btn btn-primary">
+                Try the demo
+              </Link>
+              <a href="#how-it-works" className="btn btn-secondary">
+                Read how it works
+              </a>
             </div>
           </div>
 
-          {/* Hero art — Biometric Scanner */}
-          <div className="hero-art" aria-label="Illustration of a unique behavioral fingerprint">
-            <img
-              src="/images/biometric-fingerprint.png"
-              alt="Sculpted chrome fingerprint with illuminated cyan ridges"
-              width={1024}
-              height={1024}
-              className="fingerprint-art"
-            />
-
-            {/* HUD Telemetry: Top-Left */}
-            <div style={{ position: 'absolute', left: 20, top: 20, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--muted-foreground)', zIndex: 10 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="22" y1="12" x2="18" y2="12" />
-                <line x1="6" y1="12" x2="2" y2="12" />
-                <line x1="12" y1="6" x2="12" y2="2" />
-                <line x1="12" y1="22" x2="12" y2="18" />
-              </svg>
-              IDENTITY VECTOR <span style={{ color: 'var(--primary)' }}>// 5D</span>
-            </div>
-
-            {/* HUD Telemetry: Top-Right */}
-            <span style={{ position: 'absolute', right: 20, top: 20, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--muted-foreground)', zIndex: 10 }}>
-              FNM—001
-            </span>
-
-            {/* Biometric Framing Brackets */}
-            <i className="scan-bracket tl" aria-hidden="true" />
-            <i className="scan-bracket tr" aria-hidden="true" />
-            <i className="scan-bracket bl" aria-hidden="true" />
-            <i className="scan-bracket br" aria-hidden="true" />
-
-            {/* Animated Laser Scanline */}
-            <div className="hero-scanline" aria-hidden="true" />
-
-            {/* Floating Biometric Badge */}
-            <div className="signal-panel" style={{ position: 'absolute', right: 0, top: '42%', display: 'flex', alignItems: 'center', gap: 12, padding: '0.75rem 1rem', borderRadius: '10px 0 0 10px', borderRight: 'none', zIndex: 10 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
-                <path d="m9 12 2 2 4-4"/>
-              </svg>
-              <div>
-                <p style={{ fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>Uniquely human.</p>
-                <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: '2px 0 0' }}>Impossible to be ordinary.</p>
+          <div>
+            <div className="panel" style={{ padding: '20px', boxShadow: 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+                <span className="small" style={{ fontWeight: 600 }}>Verification result sample</span>
+                <span className="chip chip-success">Match · 91%</span>
               </div>
-            </div>
-
-            {/* Bottom Status Panel with Animated Signal Bars */}
-            <div className="signal-panel" style={{ position: 'absolute', bottom: 16, left: 16, right: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1.25rem', zIndex: 10 }}>
-              <div>
-                <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0, letterSpacing: '0.04em' }}>BEHAVIORAL SIGNATURE</p>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'var(--primary)', marginTop: 4 }}>
-                  <span className="status-dot" />Your rhythm. Your identity.
-                </span>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ background: '#FAF9FD', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                  <div className="small text-muted">Hold time</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 600 }} className="num-tabular">112 ms</div>
+                  <div className="small text-muted num-tabular">+2 ms vs base</div>
+                </div>
+                <div style={{ background: '#FAF9FD', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                  <div className="small text-muted">Flight time</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 600 }} className="num-tabular">88 ms</div>
+                  <div className="small text-muted num-tabular">-4 ms vs base</div>
+                </div>
+                <div style={{ background: '#FAF9FD', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                  <div className="small text-muted">Speed</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 600 }} className="num-tabular">58 wpm</div>
+                  <div className="small text-muted num-tabular">+1 wpm vs base</div>
+                </div>
               </div>
-              <div className="signal-bars" aria-hidden="true">
-                {[10,16,8,24,16,30,11,19,27,12,22,16,8,24,13,29,17,10].map((h, i) => (
-                  <i key={i} style={{ height: h }} />
-                ))}
+
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', lineHeight: 1.5, background: 'var(--bg)', padding: '12px', borderRadius: '4px' }}>
+                Cosine similarity 0.96 with Euclidean distance penalty applied. Signal remains well within expected variance.
               </div>
             </div>
           </div>
         </section>
 
-        {/* Built-by bar */}
-        <div className="shell" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--border)', paddingBottom: 24, paddingTop: 20 }}>
-          <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--primary)', display: 'inline-block' }} />
-            FINOMALY <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>&nbsp;// CONTINUOUS BEHAVIORAL BIOMETRICS</span>
+        <hr className="hr" />
+
+        {/* ── How It Works (Numbered List) ── */}
+        <section id="how-it-works" style={{ marginBottom: '64px' }}>
+          <h2 style={{ marginBottom: '8px' }}>How it works</h2>
+          <p className="text-muted" style={{ marginBottom: '28px', maxWidth: '640px' }}>
+            The pipeline converts keypress telemetry into an anonymous five-dimensional numerical vector. No text or passwords are saved.
           </p>
-          <a href="#technology" style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--muted-foreground)', textDecoration: 'none' }}>
-            SCROLL TO DECODE
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
-          </a>
-        </div>
 
-        {/* ── TECHNOLOGY ── */}
-        <section id="technology" className="shell" style={{ paddingTop: '5rem', paddingBottom: '5rem' }}>
-          <p className="eyebrow" style={{ marginBottom: '1.25rem' }}>ENGINEERED FOR THE UNEXPECTED</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: '2.5rem' }}>
-            <h2 className="section-title">Not another password.<br /><span style={{ color: 'var(--muted-foreground)' }}>A different kind of proof.</span></h2>
-            <p style={{ maxWidth: 380, color: 'var(--muted-foreground)', fontSize: '1rem', lineHeight: 1.65, margin: 0 }}>
-              A precise stack. A human signature. Working together to make trust continuous.
-            </p>
-          </div>
-          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}>
-            {[
-              { badge: 'THE FOUNDATION', title: 'Next.js', desc: 'Fast, responsive. Built for every interaction that matters.', icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 19.5h20L12 2zm0 5l7 12.5H5L12 7z"/></svg> },
-              { badge: 'THE EXPERIENCE', title: 'Framer Motion', desc: 'Fluid motion that brings an invisible layer of security into focus.', icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg> },
-              { badge: 'THE SIGNATURE', title: 'Hybrid Biometrics', desc: 'Five behavioral dimensions. One signature uniquely yours — with weighted Euclidean penalty for real sensitivity.', icon: <FingerprintIcon size={32} /> },
-              { badge: 'THE INTELLIGENCE', title: 'Hybrid Similarity', desc: 'Cosine × Euclidean penalty. Gaps in WPM, hold time or flight time now meaningfully reduce match score.', icon: <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14h6v6"/><path d="M10 10H4V4"/><path d="M22 2 12 12"/><path d="M2 22l10-10"/></svg> },
-            ].map(card => (
-              <article key={card.title} className="tech-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  {card.icon}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)', letterSpacing: '0.08em' }}>{card.badge}</span>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 500, letterSpacing: '-0.02em', margin: 0 }}>{card.title}</h3>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: 1.6 }}>{card.desc}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        {/* ── IDENTITY GAP ── */}
-        {/* ── THE PHYSICAL VS DIGITAL GAP ── */}
-        <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--card)' }}>
-          <div className="shell" style={{ display: 'grid', alignItems: 'center', gap: '3rem', gridTemplateColumns: '1.1fr 1fr', paddingTop: '5rem', paddingBottom: '5rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <p className="eyebrow">THE PHYSICAL-TO-DIGITAL DIVIDE</p>
-              <h2 className="section-title">Valid credentials.<br /><span style={{ color: 'var(--muted-foreground)' }}>Invisible human.</span></h2>
-              <p style={{ color: 'var(--muted-foreground)', maxWidth: 480, lineHeight: 1.7, margin: 0 }}>
-                Digital interfaces only receive keystroke characters, cookies, and tokens. They cannot tell who is physically seated at the keyboard. Whether an account is hijacked, shared, or automated, the digital screen sees only characters.
-              </p>
-              <p style={{ color: 'var(--foreground)', maxWidth: 480, lineHeight: 1.7, margin: 0 }}>
-                Finomaly builds the missing bridge: <span style={{ color: 'var(--primary)' }}>translating the physical cadence of human motor memory into a continuous, non-invasive digital identity signal.</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+            <div style={{ borderLeft: '2px solid var(--accent)', paddingLeft: '16px' }}>
+              <div className="small text-muted" style={{ fontWeight: 600, marginBottom: '6px' }}>1. Enroll</div>
+              <p className="body-text" style={{ fontSize: '0.875rem' }}>
+                You type three short passages. The system records key-down and key-up intervals to calculate average hold time, flight time, typing speed, and cadence variances.
               </p>
             </div>
-            <div style={{ borderRadius: 16, border: '1px solid var(--border)', background: 'var(--background)', padding: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem', marginBottom: '1.25rem' }}>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>THE IDENTIFICATION GAP</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2"><circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg>
-              </div>
-              {[
-                { title: 'Digital Credentials Verified', status: 'Sees characters & tokens only' },
-                { title: 'Session Cookie Present', status: 'Blind to physical user presence' },
-                { title: 'Neuromuscular Rhythm Translated', status: 'Identifies the physical human' },
-              ].map(item => (
-                <div key={item.title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
-                  <div>
-                    <span style={{ color: 'var(--foreground)', fontSize: '0.85rem', display: 'block' }}>{item.title}</span>
-                    <span style={{ color: 'var(--muted-foreground)', fontSize: '0.72rem', fontFamily: 'JetBrains Mono, monospace' }}>{item.status}</span>
-                  </div>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2"><path d="M20 6 9 17l-5-5"/></svg>
-                </div>
-              ))}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: '1.25rem', padding: '1.125rem', borderRadius: 8, border: '1px solid rgba(0,245,212,0.25)', background: 'rgba(0,245,212,0.05)', color: 'var(--primary)' }}>
-                <FingerprintIcon size={28} />
-                <div>
-                  <p style={{ margin: 0, fontWeight: 500, fontSize: '0.9rem' }}>Finomaly is the Translator.</p>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>Bridging human muscle memory to online authentication.</p>
-                </div>
-              </div>
+
+            <div style={{ borderLeft: '2px solid var(--accent)', paddingLeft: '16px' }}>
+              <div className="small text-muted" style={{ fontWeight: 600, marginBottom: '6px' }}>2. Compare</div>
+              <p className="body-text" style={{ fontSize: '0.875rem' }}>
+                During verification, incoming metrics are normalized and compared against your baseline using hybrid similarity: cosine angle adjusted by Euclidean distance penalty.
+              </p>
+            </div>
+
+            <div style={{ borderLeft: '2px solid var(--accent)', paddingLeft: '16px' }}>
+              <div className="small text-muted" style={{ fontWeight: 600, marginBottom: '6px' }}>3. Flag</div>
+              <p className="body-text" style={{ fontSize: '0.875rem' }}>
+                Scores are placed into one of three bands: match (85–100%), permitted with mild variance (65–84%), or identity divergence (&lt;65%). Anomalies create an immutable audit record.
+              </p>
             </div>
           </div>
         </section>
 
-        {/* ── HOW IT WORKS ── */}
-        <section id="architecture" className="shell" style={{ paddingTop: '5rem', paddingBottom: '5rem' }}>
-          <p className="eyebrow" style={{ marginBottom: '1.25rem' }}>INSIDE THE ENGINE</p>
-          <h2 className="section-title" style={{ marginBottom: '3rem' }}>Invisible by design.<br /><span style={{ color: 'var(--muted-foreground)' }}>Intelligent at every step.</span></h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden' }}>
-            {[
-              { phase: '01', title: 'Capture the rhythm', desc: 'Dwell time. Flight time. Typing speed. Five signals, captured only when you opt in.', tag: 'INPUT → BEHAVIORAL TELEMETRY' },
-              { phase: '02', title: 'Find the signature', desc: 'Convert raw interactions into a scaled behavioral vector. Strip away the content. Keep the pattern.', tag: 'PROCESS → VECTOR NORMALIZATION' },
-              { phase: '03', title: 'Verify the human', desc: 'Compare the live vector to your baseline with a hybrid similarity engine. Cosine angle meets Euclidean distance — so large behavioral gaps produce meaningfully lower scores.', tag: 'OUTPUT → HYBRID SIMILARITY SIGNAL' },
-            ].map((step, i) => (
-              <article key={step.phase} style={{ padding: 32, borderRight: i < 2 ? '1px solid var(--border)' : 'none', display: 'flex', flexDirection: 'column', gap: 28 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                    {i === 0 && <><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><path d="M2 4h20v16H2z"/></>}
-                    {i === 1 && <><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/></>}
-                    {i === 2 && <><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M22 12h-4"/><path d="M6 12H2"/><path d="M12 6V2"/><path d="M12 22v-4"/></>}
-                  </svg>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>PHASE {step.phase}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <h3 style={{ fontSize: '1.35rem', letterSpacing: '-0.02em', margin: 0 }}>{step.title}</h3>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', lineHeight: 1.65, margin: 0 }}>{step.desc}</p>
-                </div>
-                <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.78rem', color: 'rgba(0,245,212,0.7)', margin: 0 }}>{step.tag}</p>
-              </article>
-            ))}
+        <hr className="hr" />
+
+        {/* ── What it does NOT do ── */}
+        <section style={{ marginBottom: '64px' }}>
+          <h2 style={{ marginBottom: '8px' }}>What it does not do</h2>
+          <p className="text-muted" style={{ marginBottom: '20px' }}>
+            Clear boundaries on scope and intended operation.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <div className="panel" style={{ padding: '16px' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '6px' }}>Does not store typed text</div>
+              <p className="small text-muted">
+                Keydown events calculate timing differences in milliseconds. The characters, words, and passwords themselves are discarded immediately in memory.
+              </p>
+            </div>
+
+            <div className="panel" style={{ padding: '16px' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '6px' }}>Does not replace passwords or MFA</div>
+              <p className="small text-muted">
+                Keystroke biometrics is designed as an auxiliary, continuous risk score, not a standalone gatekeeper.
+              </p>
+            </div>
+
+            <div className="panel" style={{ padding: '16px' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '6px' }}>Does not run without consent</div>
+              <p className="small text-muted">
+                Timing listeners attach strictly to designated verification input fields. There is no passive background keylogging across other browser tabs or windows.
+              </p>
+            </div>
+
+            <div className="panel" style={{ padding: '16px' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '6px' }}>Not a commercial product</div>
+              <p className="small text-muted">
+                This is an exploratory hackathon prototype. Score thresholds are illustrative and have not been benchmarked on large demographic datasets.
+              </p>
+            </div>
           </div>
         </section>
 
-        {/* ── MISSION ── */}
-        <section id="mission" style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--card)' }}>
-          <div className="shell" style={{ display: 'grid', gap: '3.5rem', gridTemplateColumns: '1.1fr 1fr', paddingTop: '5rem', paddingBottom: '5rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <p className="eyebrow">SMALL TEAM. NATIONAL AMBITION.</p>
-              <h2 className="section-title">Built for a hackathon.<br /><span style={{ color: 'var(--muted-foreground)' }}>Thinking far beyond it.</span></h2>
-              <p style={{ color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>
-                Three builders exploring one question: what if your natural physical behavior could serve as your authentic digital identity?
-              </p>
-              <p style={{ color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>
-                Next: algorithmic robustness reviews, cross-device testing, and privacy-first research. Our ambition is to build universal identity translation that bridges human presence and digital access seamlessly.
-              </p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0 }}>
-              {[
-                { initials: 'CN', name: 'Charvi Naresh' },
-                { initials: 'DB', name: 'Dolsi Bajaj' },
-                { initials: 'VS', name: 'Vasu Sharma' },
-              ].map(member => (
-                <div key={member.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', padding: '1.5rem 0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                    <span style={{ width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--background)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.85rem', color: 'var(--primary)', flexShrink: 0 }}>
-                      {member.initials}
-                    </span>
-                    <div>
-                      <h3 style={{ fontSize: '1.2rem', letterSpacing: '-0.02em', margin: 0 }}>{member.name}</h3>
-                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Co-creator</p>
-                    </div>
-                  </div>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>CORE TEAM</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <hr className="hr" />
 
         {/* ── FAQ ── */}
-        <section id="questions" className="shell" style={{ display: 'grid', gap: '3rem', gridTemplateColumns: '.8fr 1.2fr', paddingTop: '5rem', paddingBottom: '5rem' }}>
-          <div>
-            <p className="eyebrow" style={{ marginBottom: '1.25rem' }}>A LITTLE MORE CONTEXT</p>
-            <h2 className="section-title">Trust starts<br /><span style={{ color: 'var(--muted-foreground)' }}>with transparency.</span></h2>
-          </div>
-          <div>
-            <FaqItem
-              q="How does Finomaly bridge the physical and digital gap?"
-              a="Digital systems only see passwords, keys, and session cookies—they have zero visibility into who is physically operating the keyboard. Finomaly acts as a continuous translator, converting micro-dwell times and flight intervals into a 5-dimensional identity vector. When an unauthorized user takes over, the physical rhythm diverges instantly, alerting the system without tracking keystroke content."
-            />
-            <FaqItem
-              q="Does Finomaly record or store what I type?"
-              a="Never. Finomaly records zero typed content. No passwords, characters, or text strings ever leave your browser or get saved. Only anonymous numeric timing metrics (milliseconds) are computed. Furthermore, all active sessions are erased immediately when you close the session."
-            />
-            <FaqItem
-              q="Can someone mimic my typing cadence?"
-              a="Copying credentials is easy. Copying the neuromuscular micro-timing of how an individual types is mathematically difficult. Even if an attacker knows your password, replicating your key dwell times, transition speeds, and flight variance consistently, in real time, produces detectable statistical divergence."
-            />
-            <FaqItem
-              q="What happens if I'm tired or typing faster?"
-              a="The prototype uses three similarity bands: 85–100% is a verified match; 65–84% is a mild variance state that does not block access; below 65% indicates an identity divergence. These are illustrative thresholds, not clinically validated measures."
-            />
+        <section style={{ marginBottom: '64px' }}>
+          <h2 style={{ marginBottom: '20px' }}>Frequently asked questions</h2>
 
-            {/* ── ABOUT & LIMITATIONS DISCLOSURE CARD ── */}
-            <div style={{ marginTop: '2.5rem', padding: '1.25rem 1.5rem', borderRadius: 12, border: '1px solid rgba(0,245,212,0.25)', background: 'rgba(0,245,212,0.03)', fontFamily: 'JetBrains Mono, monospace' }}>
-              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#00f5d4', fontWeight: 700, letterSpacing: '0.04em' }}>
-                PROTOTYPE DISCLOSURE &amp; OPERATIONAL BOUNDARIES
-              </p>
-              <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--muted-foreground)', lineHeight: 1.65 }}>
-                Prototype. Thresholds are illustrative and not yet validated on real populations. Opt-in timing capture only. No typed text or sensitive credentials are ever recorded or stored. In production environments, behavioral biometrics serve as an adaptive secondary signal alongside standard zero-trust authenticators.
-              </p>
-            </div>
-          </div>
-        </section>
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            <details className="faq-disclosure">
+              <summary>
+                <span>How does keystroke verification differ from traditional credentials?</span>
+                <span className="small text-muted">+</span>
+              </summary>
+              <div className="faq-body">
+                Passwords, session tokens, and OTPs verify credential possession. They cannot determine if the authorized account holder is the person physically operating the keyboard. Keystroke dynamics analyzes the neuromuscular timing habits of how you type.
+              </div>
+            </details>
 
-        {/* ── CTA ── */}
-        <section className="shell" style={{ paddingBottom: '5rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, borderRadius: 16, border: '1px solid rgba(0,245,212,0.2)', background: 'rgba(0,245,212,0.04)', padding: '4rem 1.5rem', textAlign: 'center' }}>
-            <FingerprintIcon size={48} weight={1.2} />
-            <h2 className="section-title">You are the password.</h2>
-            <p style={{ maxWidth: 480, color: 'var(--muted-foreground)', lineHeight: 1.7, margin: 0 }}>
-              Try the live engine. Capture your rhythm.<br />
-              See what makes your behavior unmistakably yours.
-            </p>
-            <DemoModal />
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
-              NO SIGN-UP. NO REAL CREDENTIALS. JUST YOU.
-            </span>
+            <details className="faq-disclosure">
+              <summary>
+                <span>What happens if someone types faster or has an injured finger?</span>
+                <span className="small text-muted">+</span>
+              </summary>
+              <div className="faq-body">
+                Human typing rhythm has natural variance. The prototype uses a tolerance band between 65% and 84% (labeled Rushed / Mild Variance) which permits access without hard blocking. Scores below 65% indicate substantial deviation across multiple dimensions.
+              </div>
+            </details>
+
+            <details className="faq-disclosure">
+              <summary>
+                <span>Where is the baseline saved?</span>
+                <span className="small text-muted">+</span>
+              </summary>
+              <div className="faq-body">
+                In this demo prototype, your enrolled baseline is stored in your browser's local storage so you can test verification across page refreshes. You can clear or re-enroll at any time.
+              </div>
+            </details>
+
+            <details className="faq-disclosure">
+              <summary>
+                <span>How does the Imposter Challenge work?</span>
+                <span className="small text-muted">+</span>
+              </summary>
+              <div className="faq-body">
+                You enroll Person A with three passages, then invite Person B to type the verification passphrase using Person A's credentials. The score reflects whether Person B's motor cadence matches Person A's baseline.
+              </div>
+            </details>
           </div>
         </section>
       </main>
 
-      {/* ── FOOTER ── */}
-      <footer style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="shell" style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingTop: 32, paddingBottom: 32 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <a href="#" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
-              <FingerprintIcon size={24} />
-              <span style={{ fontSize: '1.1rem', fontWeight: 600, letterSpacing: '-0.05em' }}>
-                finomaly<span style={{ color: 'var(--primary)' }}>.</span>
-              </span>
-            </a>
-            <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', margin: 0 }}>
-              A research prototype for behavioral biometrics. Only a numeric timing vector is sent to the server, never what you type. Closing the session erases it.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </>
   );
 }
