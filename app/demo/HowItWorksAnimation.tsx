@@ -407,7 +407,7 @@ const baselineLines: MLine[] = [
   { tag: 'formula', label: 'B = norm × w', value: '[0.667×1.5, 0.311×1.2, 0.319×1.8, 0.283×0.8, 0.180×0.7]' },
   { tag: 'result',  label: 'B (centroid)', value: '[ 1.001,   0.373,   0.574,   0.226,   0.126 ]' },
   { tag: 'divider' },
-  { tag: 'result',  label: '✦  BASELINE CENTROID STORED — IDENTITY LOCKED', value: '' },
+  { tag: 'result',  label: 'BASELINE CENTROID STORED — IDENTITY LOCKED', value: '' },
 ];
 
 const muleLines: MLine[] = [
@@ -433,7 +433,7 @@ const muleLines: MLine[] = [
   { tag: 'heading', label: '05 // FINAL HYBRID MATCH SCORE' },
   { tag: 'formula', label: 'Score', value: 'Alignment × (1 − P)²' },
   { tag: 'formula', label: 'Score', value: `${COS.toFixed(4)} × (1 − ${PEN.toFixed(4)})²` },
-  { tag: 'result',  label: '⚠ FINAL SCORE', value: `${SCORE}%  ←  THRESHOLD 65%  →  ANOMALY` },
+  { tag: 'result',  label: 'ALERT: FINAL SCORE', value: `${SCORE}%  ←  THRESHOLD 65%  →  ANOMALY` },
 ];
 
 function MathScreen({ lines, visible, accent, title }: {
@@ -713,7 +713,7 @@ export default function HowItWorksAnimation() {
             See how it actually works
           </div>
           <div style={{ fontSize: '0.75rem', color: '#00f5d4', fontFamily: 'JetBrains Mono, monospace', marginTop: '2px', display: 'flex', alignItems: 'center', gap: 4 }}>
-            Interactive 30-sec simulation ⚡
+            Interactive 30-sec simulation
           </div>
         </div>
       </button>

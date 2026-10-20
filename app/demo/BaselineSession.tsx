@@ -453,7 +453,7 @@ export default function BaselineSession({ onComplete }: Props) {
           minWidth: 80,
           textAlign: 'right',
         }}>
-          {canSubmit ? `${wc} words ✓` : `${remaining} more words`}
+          {canSubmit ? `${wc} words completed` : `${remaining} more words`}
         </span>
       </div>
 

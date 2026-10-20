@@ -1,12 +1,15 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './dusk.css';
+import Navigation from '@/components/Navigation';
 
 export const metadata: Metadata = {
-  title: 'Finomaly -- The Future Is Safe',
-  description:
-    'Beyond passwords. Finomaly explores continuous authentication through behavioral biometrics. Experience the live demo by Team Hackflux.',
+  title: 'Finomaly — Keystroke Biometrics Prototype',
+  description: 'A research prototype exploring keystroke dynamics as an auxiliary identity signal.',
   applicationName: 'Finomaly',
-  robots: 'index, follow',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -14,15 +17,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <meta name="color-scheme" content="dark" />
-        <meta name="theme-color" content="#080c0d" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
+        <meta name="theme-color" content="#101315" />
       </head>
-      <body>{children}</body>
+      <body>
+        <Navigation />
+        {children}
+      </body>
     </html>
   );
 }
