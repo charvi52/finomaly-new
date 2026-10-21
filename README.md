@@ -141,7 +141,6 @@ NEXT_PUBLIC_DEMO_KEY="your-secure-internal-api-key"
 ## Team
 
 * **Charvi Naresh**
-* **Dolsi Bajaj**
 * **Vasu Sharma**
 
 ---
