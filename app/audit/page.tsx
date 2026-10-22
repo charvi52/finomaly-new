@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { getDemoUserId } from '@/lib/apiClient';
+import { detectHandoff, isMatchRecord, HandoffStatus } from '@/lib/handoff';
 import Footer from '@/components/Footer';
 
 export interface AuditRecord {
@@ -17,8 +18,25 @@ export interface AuditRecord {
   flags?: {
     pasteDetected?: boolean;
     botSuspected?: boolean;
+    zeroVariance?: boolean;
   };
   created_at: string;
+  handoffStatus?: string | null;
+  handoffReason?: string | null;
+}
+
+interface AccountHandoffSummary {
+  userId: string;
+  status: HandoffStatus | 'Status unavailable';
+  reason: string;
+  timeline: Array<{
+    id: string;
+    verdict: string;
+    score: number;
+    color: string;
+    timeFormatted: string;
+    flagsText?: string;
+  }>;
 }
 
 export default function AuditPage() {
@@ -27,6 +45,7 @@ export default function AuditPage() {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<AuditRecord | null>(null);
+  const [activeReasonAccount, setActiveReasonAccount] = useState<string | null>(null);
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,6 +116,127 @@ export default function AuditPage() {
     }
   };
 
+  // Compute Handoff Status per account
+  const accountsHandoffSummaries = useMemo<AccountHandoffSummary[]>(() => {
+    if (error && logs.length === 0) {
+      return [
+        {
+          userId: userId || 'current_account',
+          status: 'Status unavailable',
+          reason: 'Audit data unavailable (database connection offline or fallback mode).',
+          timeline: [],
+        },
+      ];
+    }
+
+    if (logs.length === 0) {
+      return [];
+    }
+
+    // Group logs by account
+    const grouped = new Map<string, AuditRecord[]>();
+    for (const log of logs) {
+      const uid = log.user_id || 'unknown';
+      const list = grouped.get(uid);
+      if (list) {
+        list.push(log);
+      } else {
+        grouped.set(uid, [log]);
+      }
+    }
+
+    const summaries: AccountHandoffSummary[] = [];
+
+    grouped.forEach((accountLogs, uid) => {
+      try {
+        // Sort oldest to newest
+        const sorted = [...accountLogs].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+
+        // Detect handoff status using pure detectHandoff function
+        const handoffResult = detectHandoff(
+          sorted.map((r) => {
+            let verdict = 'Match';
+            const b = (r.band || '').toLowerCase();
+            if (b === 'anomaly') verdict = 'Hard Flag';
+            else if (b === 'rushed') verdict = 'Soft Flag';
+            else if (b === 'match') verdict = 'Match';
+            else verdict = r.band || 'Match';
+
+            return {
+              verdict,
+              band: r.band,
+              score: r.score,
+              timestamp: r.created_at,
+              created_at: r.created_at,
+              flags: r.flags,
+              pasteDetected: Boolean(r.flags?.pasteDetected),
+              botSuspected: Boolean(r.flags?.botSuspected),
+            };
+          })
+        );
+
+        // Last 10 records for the timeline dots
+        const last10 = sorted.slice(-10);
+        const timeline = last10.map((r) => {
+          const isMatch = isMatchRecord({
+            verdict: r.band,
+            flags: r.flags,
+          });
+
+          const isRushed = (r.band || '').toLowerCase() === 'rushed';
+          let color = '#2e6b3e'; // Green for Match
+          let verdict = 'Match';
+
+          if (!isMatch) {
+            if (isRushed && !r.flags?.pasteDetected && !r.flags?.botSuspected) {
+              color = '#b8741a'; // Amber for Soft Flag / Rushed
+              verdict = 'Soft Flag (Rushed)';
+            } else {
+              color = '#b93826'; // Red for Hard Flag / Anomaly / Paste / Bot
+              verdict = r.flags?.pasteDetected
+                ? 'Hard Flag (Paste)'
+                : r.flags?.botSuspected
+                ? 'Hard Flag (Robotic)'
+                : 'Hard Flag (Anomaly)';
+            }
+          }
+
+          const { local } = formatTime(r.created_at);
+          const flagsList: string[] = [];
+          if (r.flags?.pasteDetected) flagsList.push('Paste');
+          if (r.flags?.botSuspected) flagsList.push('Robotic');
+
+          return {
+            id: r.id,
+            verdict,
+            score: r.score,
+            color,
+            timeFormatted: local,
+            flagsText: flagsList.length > 0 ? flagsList.join(', ') : undefined,
+          };
+        });
+
+        summaries.push({
+          userId: uid,
+          status: handoffResult.status,
+          reason: handoffResult.reason,
+          timeline,
+        });
+      } catch {
+        summaries.push({
+          userId: uid,
+          status: 'Status unavailable',
+          reason: 'Unable to evaluate account drift status.',
+          timeline: [],
+        });
+      }
+    });
+
+    return summaries;
+  }, [logs, error, userId]);
+
   // Filtered and sorted logs
   const filteredLogs = useMemo(() => {
     let result = [...logs];
@@ -140,6 +280,57 @@ export default function AuditPage() {
       return <span className="chip chip-warning">Rushed</span>;
     }
     return <span className="chip chip-danger">Anomaly</span>;
+  };
+
+  const renderHandoffBadge = (status: HandoffStatus | 'Status unavailable' | string | null | undefined) => {
+    if (status === 'Stable') {
+      return (
+        <span
+          className="chip chip-success"
+          style={{ fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.02em' }}
+        >
+          ● Stable
+        </span>
+      );
+    }
+    if (status === 'Watch') {
+      return (
+        <span
+          className="chip chip-warning"
+          style={{ fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.02em' }}
+        >
+          ▲ Watch
+        </span>
+      );
+    }
+    if (status === 'Handoff Suspected') {
+      return (
+        <span
+          className="chip chip-danger"
+          style={{ fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.02em' }}
+        >
+          ⚠ Handoff Suspected
+        </span>
+      );
+    }
+    if (status === 'Insufficient data') {
+      return (
+        <span
+          className="chip chip-neutral"
+          style={{ fontWeight: 500, fontSize: '0.72rem', color: 'var(--text-muted)' }}
+        >
+          ○ Insufficient data
+        </span>
+      );
+    }
+    return (
+      <span
+        className="chip chip-neutral"
+        style={{ fontWeight: 500, fontSize: '0.72rem', color: 'var(--text-muted)' }}
+      >
+        — Status unavailable
+      </span>
+    );
   };
 
   return (
@@ -193,6 +384,190 @@ export default function AuditPage() {
           </div>
         </div>
 
+        {/* TASK 1: Handoff Drift Status Section */}
+        <section
+          aria-label="Account Handoff Drift Alerts"
+          style={{
+            marginBottom: '28px',
+            padding: '20px 24px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <div className="eyebrow" style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>
+                Continuous behavioral monitor
+              </div>
+              <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Handoff drift detection</h2>
+            </div>
+            <span className="small text-muted">
+              Evaluates latest 3 sessions against baseline history
+            </span>
+          </div>
+
+          {/* State: Data unavailable / DB down */}
+          {(error || (!loading && logs.length === 0)) && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                padding: '14px 18px',
+                background: '#f6f7f2',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '6px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {renderHandoffBadge('Status unavailable')}
+                <span className="small text-muted">
+                  {error
+                    ? 'Status unavailable: Could not reach telemetry database.'
+                    : 'Status unavailable: No sessions recorded yet. Complete a typing lab to start monitoring.'}
+                </span>
+              </div>
+              <Link href="/demo" className="btn btn-secondary small" style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+                Run demo
+              </Link>
+            </div>
+          )}
+
+          {/* Account cards with Status Badge & 10-Verdicts Timeline */}
+          {!loading && accountsHandoffSummaries.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {accountsHandoffSummaries.map((account) => {
+                const isSelected = activeReasonAccount === account.userId;
+                const shortUser = account.userId.startsWith('ephemeral')
+                  ? `Demo account (${account.userId.slice(0, 14)}...)`
+                  : `Account: ${account.userId}`;
+
+                return (
+                  <div
+                    key={account.userId}
+                    style={{
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '6px',
+                      background: isSelected ? 'var(--accent-light, #f0f4ea)' : '#fafbfa',
+                      padding: '14px 16px',
+                      transition: 'background 0.15s, border-color 0.15s',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() =>
+                      setActiveReasonAccount(isSelected ? null : account.userId)
+                    }
+                    title={account.reason}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                      }}
+                    >
+                      {/* Left: Account ID & Badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }} className="mono-id">
+                          {shortUser}
+                        </span>
+                        {renderHandoffBadge(account.status)}
+                      </div>
+
+                      {/* Right: Last 10 Verdicts Timeline Dots */}
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveReasonAccount(isSelected ? null : account.userId);
+                        }}
+                      >
+                        <span className="small text-muted" style={{ fontSize: '0.72rem' }}>
+                          Last {account.timeline.length} verdicts:
+                        </span>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 8px',
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '16px',
+                          }}
+                          aria-label="Timeline of last 10 session verdicts"
+                        >
+                          {account.timeline.length === 0 && (
+                            <span className="small text-muted" style={{ fontSize: '0.7rem' }}>
+                              No history
+                            </span>
+                          )}
+                          {account.timeline.map((dot, idx) => (
+                            <button
+                              key={dot.id || idx}
+                              type="button"
+                              aria-label={`${dot.verdict} session on ${dot.timeFormatted}`}
+                              title={`${dot.verdict} (${(dot.score * 100).toFixed(0)}%) - ${dot.timeFormatted}\n${account.reason}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveReasonAccount(account.userId);
+                              }}
+                              style={{
+                                width: '11px',
+                                height: '11px',
+                                borderRadius: '50%',
+                                background: dot.color,
+                                border: '1px solid rgba(0,0,0,0.15)',
+                                padding: 0,
+                                cursor: 'pointer',
+                                outline: 'none',
+                                transition: 'transform 0.12s',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'scale(1.35)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'scale(1)';
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* One-line reason banner (always visible or highlighted on click/tap) */}
+                    <div
+                      style={{
+                        marginTop: '10px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid var(--border-subtle)',
+                        fontSize: '0.78rem',
+                        color: isSelected ? 'var(--text)' : 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontWeight: 550, color: 'var(--text)' }}>Diagnosis: </strong>
+                        <span>{account.reason}</span>
+                      </div>
+                      <span className="small text-muted" style={{ fontSize: '0.7rem', flexShrink: 0 }}>
+                        {isSelected ? 'Tap to collapse' : 'Tap to expand'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {/* Filter bar */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '600px' }}>
@@ -210,7 +585,7 @@ export default function AuditPage() {
             <select
               value={bandFilter}
               onChange={(e) => {
-                setBandFilter(e.target.value as any);
+                setBandFilter(e.target.value as 'all' | 'match' | 'rushed' | 'anomaly');
                 setCurrentPage(1);
               }}
               style={{ width: 'auto' }}
@@ -254,6 +629,7 @@ export default function AuditPage() {
                   <th>Score</th>
                   <th>Band</th>
                   <th>Flags</th>
+                  <th>Handoff Alert</th>
                   <th>Source</th>
                 </tr>
               </thead>
@@ -268,7 +644,8 @@ export default function AuditPage() {
                         <td><div className="skeleton" style={{ height: '16px', width: '50px' }} /></td>
                         <td><div className="skeleton" style={{ height: '16px', width: '60px' }} /></td>
                         <td><div className="skeleton" style={{ height: '16px', width: '40px' }} /></td>
-                        <td><div className="skeleton" style={{ height: '16px', width: '60px' }} /></td>
+                        <td><div className="skeleton" style={{ height: '16px', width: '80px' }} /></td>
+                        <td><div className="skeleton" style={{ height: '16px', width: '50px' }} /></td>
                       </tr>
                     ))}
                   </>
@@ -277,7 +654,7 @@ export default function AuditPage() {
                 {/* Empty state (No fake sample rows) */}
                 {!loading && filteredLogs.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
                       <p className="text-muted" style={{ marginBottom: '12px' }}>
                         No attempts yet. Run the demo to create one.
                       </p>
@@ -321,6 +698,9 @@ export default function AuditPage() {
                           ) : (
                             <span className="text-muted small">None</span>
                           )}
+                        </td>
+                        <td>
+                          {renderHandoffBadge(row.handoffStatus)}
                         </td>
                         <td>
                           <span className="small text-muted">
@@ -372,6 +752,18 @@ export default function AuditPage() {
                       {(selectedRecord.score * 100).toFixed(1)}%
                     </span>
                     {renderBandChip(selectedRecord.band)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-muted small">Account Handoff Status</div>
+                  <div style={{ marginTop: '4px' }}>
+                    {renderHandoffBadge(selectedRecord.handoffStatus)}
+                    {selectedRecord.handoffReason && (
+                      <p className="small text-muted" style={{ marginTop: '6px', fontSize: '0.75rem' }}>
+                        {selectedRecord.handoffReason}
+                      </p>
+                    )}
                   </div>
                 </div>
 
