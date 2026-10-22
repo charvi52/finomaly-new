@@ -43,23 +43,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // 3. Query parameter validation & access control
+  // 3. Query parameter validation
   const { searchParams } = new URL(req.url);
   const rawUserId = searchParams.get('userId');
   const isGlobalQuery = !rawUserId || rawUserId.trim() === 'all' || rawUserId.trim() === '*';
-
-  // Protecting cross-tenant / admin data:
-  // If querying all users' logs, require Admin authorization
-  if (isGlobalQuery) {
-    const adminCheck = validateAdminAuth(req);
-    if (!adminCheck.valid) {
-      return NextResponse.json(
-        { error: 'Admin authorization required to view global audit logs. Provide x-admin-key or specify your individual userId.' },
-        { status: 403, headers: baseHeaders }
-      );
-    }
-  }
-
   const cleanUserId = sanitizeUserId(rawUserId || '');
 
   // 4. Supabase DB query

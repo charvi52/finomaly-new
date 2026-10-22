@@ -37,29 +37,21 @@ export default function AuditPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  // Access Control / Admin Mode
-  const [isAdminMode, setIsAdminMode] = useState(false);
-  const [adminKey, setAdminKey] = useState('');
-  const [keyInput, setKeyInput] = useState('');
-  const [showKeyDialog, setShowKeyDialog] = useState(false);
+  // Scope filter: 'all' (default, displays all demo audit logs) vs 'mine' (only current browser session)
+  const [scope, setScope] = useState<'all' | 'mine'>('all');
 
-  const fetchAuditLogs = useCallback(async (asAdmin = isAdminMode, key = adminKey) => {
+  const fetchAuditLogs = useCallback(async (currentScope = scope) => {
     setLoading(true);
     setError(null);
 
     try {
       const currentId = getDemoUserId();
-      const queryUser = asAdmin ? 'all' : currentId;
-
-      const headers: Record<string, string> = {
-        'x-finomaly-client': 'web',
-      };
-      if (asAdmin && key) {
-        headers['x-admin-key'] = key;
-      }
+      const queryUser = currentScope === 'mine' ? currentId : 'all';
 
       const res = await fetch(`/api/audit?userId=${encodeURIComponent(queryUser)}`, {
-        headers,
+        headers: {
+          'x-finomaly-client': 'web',
+        },
       });
 
       if (!res.ok) {
@@ -76,13 +68,13 @@ export default function AuditPage() {
     } finally {
       setLoading(false);
     }
-  }, [isAdminMode, adminKey]);
+  }, [scope]);
 
   useEffect(() => {
     const currentId = getDemoUserId();
     setUserId(currentId);
-    fetchAuditLogs(false, '');
-  }, [fetchAuditLogs]);
+    fetchAuditLogs('all');
+  }, []);
 
   // Format time (local + relative)
   const formatTime = (isoString: string) => {
@@ -157,105 +149,49 @@ export default function AuditPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
           <div>
             <span className="small text-muted" style={{ display: 'block', marginBottom: '6px' }}>
-              {isAdminMode ? 'Global Operations (Admin Mode)' : `Session View (${userId ? userId.slice(0, 16) + '...' : 'Local'})`}
+              Operations & compliance
             </span>
             <h1 style={{ marginBottom: '6px' }}>Audit log</h1>
             <p className="body-text text-muted">
-              {isAdminMode
-                ? 'All cross-session telemetry records captured across the system.'
-                : 'Live telemetry records captured from your active verification sessions.'}
+              Live telemetry records captured from demo and challenge verification sessions.
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {isAdminMode ? (
+            <div style={{ display: 'inline-flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px' }}>
               <button
                 type="button"
-                className="btn btn-secondary small"
+                className={`btn small ${scope === 'all' ? 'btn-primary' : 'btn-text'}`}
+                style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '4px' }}
                 onClick={() => {
-                  setIsAdminMode(false);
-                  setAdminKey('');
-                  fetchAuditLogs(false, '');
+                  setScope('all');
+                  fetchAuditLogs('all');
                 }}
               >
-                Exit Admin View
+                All sessions
               </button>
-            ) : (
               <button
                 type="button"
-                className="btn btn-secondary small"
-                onClick={() => setShowKeyDialog(true)}
+                className={`btn small ${scope === 'mine' ? 'btn-primary' : 'btn-text'}`}
+                style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '4px' }}
+                onClick={() => {
+                  setScope('mine');
+                  fetchAuditLogs('mine');
+                }}
               >
-                Admin View
+                My session only
               </button>
-            )}
+            </div>
             <button
               type="button"
               className="btn btn-secondary small"
-              onClick={() => fetchAuditLogs()}
+              onClick={() => fetchAuditLogs(scope)}
               disabled={loading}
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
         </div>
-
-        {/* Admin Key Modal */}
-        {showKeyDialog && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.7)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 100,
-              padding: '16px',
-            }}
-          >
-            <div className="panel" style={{ maxWidth: '420px', width: '100%', padding: '24px' }}>
-              <h3 style={{ marginBottom: '8px' }}>Admin Authorization</h3>
-              <p className="small text-muted" style={{ marginBottom: '16px' }}>
-                Cross-tenant audit logs require an operator key. Regular users may only view their own session logs.
-              </p>
-              <input
-                type="password"
-                placeholder="Enter Admin API Key..."
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                style={{ marginBottom: '16px' }}
-                autoFocus
-              />
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary small"
-                  onClick={() => {
-                    setShowKeyDialog(false);
-                    setKeyInput('');
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary small"
-                  onClick={() => {
-                    const key = keyInput.trim();
-                    setAdminKey(key);
-                    setIsAdminMode(true);
-                    setShowKeyDialog(false);
-                    fetchAuditLogs(true, key);
-                  }}
-                  disabled={!keyInput.trim()}
-                >
-                  Unlock Global Logs
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Filter bar */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
