@@ -278,7 +278,15 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
           <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginBottom: '0.375rem', fontFamily: 'JetBrains Mono, monospace' }}>
             FULL NAME
           </label>
-          <input type="text" className="login-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Charvi Naresh" autoComplete="name" />
+          <input
+            type="text"
+            className="login-input"
+            value={name}
+            maxLength={80}
+            onChange={e => setName(e.target.value.replace(/[\x00-\x1F\x7F]/g, '').slice(0, 80))}
+            placeholder="e.g. Charvi Naresh"
+            autoComplete="name"
+          />
         </div>
 
         {/* Email */}
@@ -286,7 +294,15 @@ export default function LoginSession({ baselineSessions, onResult, onReenroll }:
           <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginBottom: '0.375rem', fontFamily: 'JetBrains Mono, monospace' }}>
             ACCOUNT EMAIL
           </label>
-          <input type="email" className="login-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="e.g. charvi@finobank.in" autoComplete="email" />
+          <input
+            type="email"
+            className="login-input"
+            value={email}
+            maxLength={120}
+            onChange={e => setEmail(e.target.value.replace(/[\x00-\x1F\x7F\s]/g, '').slice(0, 120))}
+            placeholder="e.g. charvi@finobank.in"
+            autoComplete="email"
+          />
         </div>
 
         {/* Behavioral passphrase */}

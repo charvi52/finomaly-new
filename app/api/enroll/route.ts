@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase';
-import { checkRateLimit, validateApiKey } from '@/lib/apiSecurity';
+import {
+  checkRateLimit,
+  validateApiAuth,
+  getCorsHeaders,
+  handleCorsPreflight,
+} from '@/lib/apiSecurity';
+import { sanitizeUserId } from '@/lib/security';
 import {
   validateNumericVector,
   arrayToRawVector,
@@ -16,22 +22,35 @@ interface EnrollRequestBody {
   consent: boolean;
 }
 
+export async function OPTIONS(req: NextRequest) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: NextRequest) {
-  // 1. Rate limiting per IP
-  const rateLimit = checkRateLimit(req);
+  const corsHeaders = getCorsHeaders(req);
+
+  // 1. Rate limiting per IP (strict limit for enrollment)
+  const rateLimit = checkRateLimit(req, { routeKey: 'enroll', maxRequests: 20 });
+  const baseHeaders = {
+    ...corsHeaders,
+    'X-RateLimit-Limit': '20',
+    'X-RateLimit-Remaining': String(rateLimit.remaining),
+    'X-RateLimit-Reset': String(rateLimit.resetAt),
+  };
+
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please try again in 1 minute.' },
-      { status: 429 }
+      { status: 429, headers: baseHeaders }
     );
   }
 
-  // 2. API key validation
-  const apiKeyCheck = validateApiKey(req);
-  if (!apiKeyCheck.valid) {
+  // 2. API Authorization check
+  const authCheck = validateApiAuth(req);
+  if (!authCheck.valid) {
     return NextResponse.json(
-      { error: apiKeyCheck.error },
-      { status: 401 }
+      { error: authCheck.error || 'Unauthorized' },
+      { status: 401, headers: baseHeaders }
     );
   }
 
@@ -42,23 +61,24 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json(
       { error: 'Invalid JSON request body' },
-      { status: 400 }
+      { status: 400, headers: baseHeaders }
     );
   }
 
   const { userId, vector, consent } = body;
+  const cleanUserId = sanitizeUserId(userId);
 
-  if (typeof userId !== 'string' || !userId.trim()) {
+  if (!cleanUserId) {
     return NextResponse.json(
-      { error: 'userId must be a non-empty string' },
-      { status: 400 }
+      { error: 'userId must be a non-empty alphanumeric string (max 64 characters)' },
+      { status: 400, headers: baseHeaders }
     );
   }
 
   if (consent !== true) {
     return NextResponse.json(
       { error: 'Consent is required (consent must be true) to enroll a behavioral profile' },
-      { status: 400 }
+      { status: 400, headers: baseHeaders }
     );
   }
 
@@ -66,7 +86,7 @@ export async function POST(req: NextRequest) {
   if (!vectorValidation.valid || !vectorValidation.vector) {
     return NextResponse.json(
       { error: vectorValidation.error || 'Invalid 5D vector' },
-      { status: 400 }
+      { status: 400, headers: baseHeaders }
     );
   }
 
@@ -77,8 +97,8 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return NextResponse.json(
-      { error: 'Database service not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)' },
-      { status: 503 }
+      { error: 'Database service not configured' },
+      { status: 503, headers: baseHeaders }
     );
   }
 
@@ -86,14 +106,13 @@ export async function POST(req: NextRequest) {
     const { data: existingProfile, error: fetchError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', cleanUserId)
       .maybeSingle();
 
     if (fetchError) {
-      console.error('Supabase fetch error:', fetchError);
       return NextResponse.json(
         { error: 'Database query error during enrollment check' },
-        { status: 500 }
+        { status: 500, headers: baseHeaders }
       );
     }
 
@@ -108,7 +127,7 @@ export async function POST(req: NextRequest) {
       };
 
       const { error: insertError } = await supabase.from('profiles').insert({
-        user_id: userId,
+        user_id: cleanUserId,
         baseline: baselinePayload,
         sessions_count: 1,
         consent: true,
@@ -117,10 +136,9 @@ export async function POST(req: NextRequest) {
       });
 
       if (insertError) {
-        console.error('Supabase insert error:', insertError);
         return NextResponse.json(
           { error: 'Failed to record initial baseline session' },
-          { status: 500 }
+          { status: 500, headers: baseHeaders }
         );
       }
 
@@ -133,7 +151,8 @@ export async function POST(req: NextRequest) {
         ? existingBaseline.sessions
         : [existingBaseline?.centroid || existingBaseline];
 
-      const updatedSessions: RawVector[] = [...priorSessions, newSessionRaw];
+      // Keep up to 10 historical sessions to prevent unbounded DB growth
+      const updatedSessions: RawVector[] = [...priorSessions, newSessionRaw].slice(-10);
       const updatedCentroid = averageRawVectors(updatedSessions);
       sessionsCount = updatedSessions.length;
       enrolled = sessionsCount >= 3;
@@ -149,27 +168,27 @@ export async function POST(req: NextRequest) {
           consent: true,
           updated_at: new Date().toISOString(),
         })
-        .eq('user_id', userId);
+        .eq('user_id', cleanUserId);
 
       if (updateError) {
-        console.error('Supabase update error:', updateError);
         return NextResponse.json(
           { error: 'Failed to update baseline session in database' },
-          { status: 500 }
+          { status: 500, headers: baseHeaders }
         );
       }
     }
 
-    return NextResponse.json({
-      sessionsCount,
-      enrolled,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown internal error';
-    console.error('Enrollment route error:', message);
+    return NextResponse.json(
+      {
+        sessionsCount,
+        enrolled,
+      },
+      { status: 200, headers: baseHeaders }
+    );
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error processing enrollment' },
-      { status: 500 }
+      { status: 500, headers: baseHeaders }
     );
   }
 }

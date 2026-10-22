@@ -1,74 +1,168 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual, isAllowedOrigin } from './security';
 
-// Simple in-memory rate limiter per client IP: 60 requests per minute
 interface RateLimitRecord {
   count: number;
   resetAt: number;
 }
 
-const ipRateLimits = new Map<string, RateLimitRecord>();
-const WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 60;
+const rateLimitStore = new Map<string, RateLimitRecord>();
+const DEFAULT_WINDOW_MS = 60 * 1000; // 1 minute
+const DEFAULT_MAX_REQUESTS = 45;
 
-export function checkRateLimit(req: NextRequest): { allowed: boolean; remaining: number } {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    req.headers.get('x-real-ip') ||
-    '127.0.0.1';
+/**
+ * Extracts client IP securely.
+ * On Vercel / reverse proxies, the proxy appends the genuine client IP to the end,
+ * while a malicious client can prepend arbitrary fake IPs in the x-forwarded-for header.
+ */
+export function getClientIp(req: NextRequest): string {
+  const vercelIp = req.headers.get('x-vercel-proxied-for');
+  if (vercelIp && vercelIp.trim()) {
+    return vercelIp.split(',').pop()?.trim() || vercelIp.trim();
+  }
+
+  const realIp = req.headers.get('x-real-ip');
+  if (realIp && realIp.trim()) {
+    return realIp.trim();
+  }
+
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded && forwarded.trim()) {
+    const parts = forwarded.split(',').map((p) => p.trim()).filter(Boolean);
+    // Take the rightmost IP (last trusted proxy hop)
+    return parts[parts.length - 1] || '127.0.0.1';
+  }
+
+  return '127.0.0.1';
+}
+
+/**
+ * Rate limiter supporting per-route and per-IP buckets.
+ */
+export function checkRateLimit(
+  req: NextRequest,
+  options: { maxRequests?: number; windowMs?: number; routeKey?: string } = {}
+): { allowed: boolean; remaining: number; resetAt: number } {
+  const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
+  const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
+  const route = options.routeKey ?? 'global';
+  const ip = getClientIp(req);
+  const key = `${route}:${ip}`;
 
   const now = Date.now();
-  const existing = ipRateLimits.get(ip);
+  const existing = rateLimitStore.get(key);
 
-  // Periodically clean up stale entries if map grows
-  if (ipRateLimits.size > 5000) {
-    ipRateLimits.forEach((record, key) => {
+  // Periodically clean up stale entries if store grows
+  if (rateLimitStore.size > 2000) {
+    rateLimitStore.forEach((record, k) => {
       if (record.resetAt < now) {
-        ipRateLimits.delete(key);
+        rateLimitStore.delete(k);
       }
     });
   }
 
   if (!existing || existing.resetAt < now) {
-    ipRateLimits.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return { allowed: true, remaining: MAX_REQUESTS - 1 };
+    const resetAt = now + windowMs;
+    rateLimitStore.set(key, { count: 1, resetAt });
+    return { allowed: true, remaining: maxRequests - 1, resetAt };
   }
 
-  if (existing.count >= MAX_REQUESTS) {
-    return { allowed: false, remaining: 0 };
+  if (existing.count >= maxRequests) {
+    return { allowed: false, remaining: 0, resetAt: existing.resetAt };
   }
 
   existing.count += 1;
-  return { allowed: true, remaining: MAX_REQUESTS - existing.count };
+  return { allowed: true, remaining: maxRequests - existing.count, resetAt: existing.resetAt };
 }
 
 /**
- * Validates the x-api-key header against the API_KEY environment variable.
- * 
- * NOTE: In a real-world enterprise production deployment, shared demo API keys
- * would be replaced by authenticated sessions, OAuth2 tokens, or signed client JWTs.
+ * Validates whether the request is authorized:
+ * 1. Checks API_KEY using timing-safe comparison.
+ * 2. OR validates same-origin browser requests (CSRF / Origin check).
  */
-export function validateApiKey(req: NextRequest): { valid: boolean; error?: string } {
+export function validateApiAuth(req: NextRequest): { valid: boolean; isSameOrigin: boolean; error?: string } {
   const expectedKey = process.env.API_KEY;
-  if (!expectedKey) {
-    // If not set on server, allow request in local development mode
-    return { valid: true };
+  const authHeader = req.headers.get('authorization');
+  const bearerKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  const providedKey = req.headers.get('x-api-key')?.trim() || bearerKey;
+
+  // 1. Direct API Key authentication via timingSafeEqual
+  if (expectedKey && providedKey && timingSafeEqual(providedKey, expectedKey)) {
+    return { valid: true, isSameOrigin: false };
   }
 
-  const providedKey = req.headers.get('x-api-key');
-  if (providedKey && providedKey === expectedKey) {
-    return { valid: true };
-  }
-
-  // Also allow same-origin requests from the demo browser frontend
+  // 2. Strict Same-Origin validation for demo browser client
   const origin = req.headers.get('origin');
   const host = req.headers.get('host');
   const secFetchSite = req.headers.get('sec-fetch-site');
-  if (secFetchSite === 'same-origin' || (origin && host && origin.includes(host))) {
+
+  const sameOriginValid =
+    secFetchSite === 'same-origin' ||
+    isAllowedOrigin(origin, host) ||
+    (!origin && secFetchSite === 'none'); // direct navigation / local test
+
+  if (sameOriginValid) {
+    return { valid: true, isSameOrigin: true };
+  }
+
+  return {
+    valid: false,
+    isSameOrigin: false,
+    error: 'Unauthorized: Invalid or missing API key',
+  };
+}
+
+/**
+ * Validates Admin-level authorization.
+ * Required for viewing all users' audit logs or sensitive administrative actions.
+ */
+export function validateAdminAuth(req: NextRequest): { valid: boolean; error?: string } {
+  const adminKey = process.env.ADMIN_API_KEY || process.env.API_KEY;
+  if (!adminKey) {
+    // If no admin key configured, deny cross-user access in production
+    if (process.env.NODE_ENV === 'production') {
+      return { valid: false, error: 'Admin access not configured on server' };
+    }
+    return { valid: true };
+  }
+
+  const authHeader = req.headers.get('authorization');
+  const bearerKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  const providedKey = req.headers.get('x-admin-key')?.trim() || req.headers.get('x-api-key')?.trim() || bearerKey;
+
+  if (providedKey && timingSafeEqual(providedKey, adminKey)) {
     return { valid: true };
   }
 
   return {
     valid: false,
-    error: 'Unauthorized: Invalid or missing x-api-key header',
+    error: 'Forbidden: Admin authorization required to access cross-user records',
   };
+}
+
+/**
+ * Constructs secure CORS response headers.
+ */
+export function getCorsHeaders(req: NextRequest): Record<string, string> {
+  const origin = req.headers.get('origin');
+  const host = req.headers.get('host');
+  const allowed = isAllowedOrigin(origin, host);
+
+  return {
+    'Access-Control-Allow-Origin': allowed && origin ? origin : '',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-admin-key, x-finomaly-client',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
+  };
+}
+
+/**
+ * Creates standard preflight response for OPTIONS requests.
+ */
+export function handleCorsPreflight(req: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: getCorsHeaders(req),
+  });
 }

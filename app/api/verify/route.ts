@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase';
-import { checkRateLimit, validateApiKey } from '@/lib/apiSecurity';
+import {
+  checkRateLimit,
+  validateApiAuth,
+  getCorsHeaders,
+  handleCorsPreflight,
+} from '@/lib/apiSecurity';
+import { sanitizeUserId } from '@/lib/security';
 import {
   validateNumericVector,
   arrayToRawVector,
@@ -26,22 +32,35 @@ interface VerifyRequestBody {
   clientBaseline?: RawVector[];
 }
 
+export async function OPTIONS(req: NextRequest) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: NextRequest) {
+  const corsHeaders = getCorsHeaders(req);
+
   // 1. Rate limiting per IP
-  const rateLimit = checkRateLimit(req);
+  const rateLimit = checkRateLimit(req, { routeKey: 'verify', maxRequests: 30 });
+  const baseHeaders = {
+    ...corsHeaders,
+    'X-RateLimit-Limit': '30',
+    'X-RateLimit-Remaining': String(rateLimit.remaining),
+    'X-RateLimit-Reset': String(rateLimit.resetAt),
+  };
+
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please try again in 1 minute.' },
-      { status: 429 }
+      { status: 429, headers: baseHeaders }
     );
   }
 
-  // 2. API key validation
-  const apiKeyCheck = validateApiKey(req);
-  if (!apiKeyCheck.valid) {
+  // 2. API Authorization check
+  const authCheck = validateApiAuth(req);
+  if (!authCheck.valid) {
     return NextResponse.json(
-      { error: apiKeyCheck.error },
-      { status: 401 }
+      { error: authCheck.error || 'Unauthorized' },
+      { status: 401, headers: baseHeaders }
     );
   }
 
@@ -52,16 +71,17 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json(
       { error: 'Invalid JSON request body' },
-      { status: 400 }
+      { status: 400, headers: baseHeaders }
     );
   }
 
   const { userId, vector, flags } = body;
+  const cleanUserId = sanitizeUserId(userId);
 
-  if (typeof userId !== 'string' || !userId.trim()) {
+  if (!cleanUserId) {
     return NextResponse.json(
-      { error: 'userId must be a non-empty string' },
-      { status: 400 }
+      { error: 'userId must be a non-empty alphanumeric string (max 64 characters)' },
+      { status: 400, headers: baseHeaders }
     );
   }
 
@@ -69,7 +89,7 @@ export async function POST(req: NextRequest) {
   if (!vectorValidation.valid || !vectorValidation.vector) {
     return NextResponse.json(
       { error: vectorValidation.error || 'Invalid 5D vector' },
-      { status: 400 }
+      { status: 400, headers: baseHeaders }
     );
   }
 
@@ -81,8 +101,8 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return NextResponse.json(
-      { error: 'Database service not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)' },
-      { status: 503 }
+      { error: 'Database service not configured' },
+      { status: 503, headers: baseHeaders }
     );
   }
 
@@ -90,14 +110,13 @@ export async function POST(req: NextRequest) {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', cleanUserId)
       .maybeSingle();
 
     if (profileError) {
-      console.error('Supabase fetch error:', profileError);
       return NextResponse.json(
         { error: 'Database error fetching user baseline' },
-        { status: 500 }
+        { status: 500, headers: baseHeaders }
       );
     }
 
@@ -107,7 +126,7 @@ export async function POST(req: NextRequest) {
       if (body.clientBaseline && Array.isArray(body.clientBaseline) && body.clientBaseline.length > 0) {
         baselineRaw = averageRawVectors(body.clientBaseline);
         await supabase.from('profiles').upsert({
-          user_id: userId,
+          user_id: cleanUserId,
           baseline: {
             sessions: body.clientBaseline,
             centroid: baselineRaw,
@@ -119,7 +138,7 @@ export async function POST(req: NextRequest) {
       } else {
         return NextResponse.json(
           { error: 'No enrolled baseline found for this user. Please complete baseline enrollment first.' },
-          { status: 404 }
+          { status: 404, headers: baseHeaders }
         );
       }
     } else {
@@ -147,7 +166,7 @@ export async function POST(req: NextRequest) {
     // 5. Apply Exponential Moving Average (EMA) baseline update ONLY when band is 'match'
     if (band === 'match') {
       const updatedBaselineRaw = applyEmaUpdate(baselineRaw, liveRaw, EMA_ALPHA);
-      const updatedSessions = Array.isArray(profile.baseline.sessions)
+      const updatedSessions = Array.isArray(profile?.baseline?.sessions)
         ? [...profile.baseline.sessions, liveRaw].slice(-5) // Keep last 5 sessions
         : [updatedBaselineRaw];
 
@@ -160,13 +179,13 @@ export async function POST(req: NextRequest) {
           },
           updated_at: new Date().toISOString(),
         })
-        .eq('user_id', userId);
+        .eq('user_id', cleanUserId);
     }
 
     // 6. Write immutable audit log row
-    // NEVER store typed text or raw keys: only numeric metrics, band, and flags
-    const { error: auditError } = await supabase.from('audit_logs').insert({
-      user_id: userId,
+    // NEVER store typed text, passwords, or raw keys: only numeric metrics, band, and flags
+    await supabase.from('audit_logs').insert({
+      user_id: cleanUserId,
       score: Number(score.toFixed(4)),
       band,
       features: {
@@ -180,22 +199,18 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
     });
 
-    if (auditError) {
-      console.error('Failed to write audit log:', auditError);
-      // Non-fatal: still return score/band to avoid breaking user authentication flow
-    }
-
-    return NextResponse.json({
-      score: Number(score.toFixed(4)),
-      band,
-      featureDeltas,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown internal error';
-    console.error('Verification route error:', message);
+    return NextResponse.json(
+      {
+        score: Number(score.toFixed(4)),
+        band,
+        featureDeltas,
+      },
+      { status: 200, headers: baseHeaders }
+    );
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error processing verification' },
-      { status: 500 }
+      { status: 500, headers: baseHeaders }
     );
   }
 }
