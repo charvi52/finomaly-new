@@ -417,14 +417,15 @@ export default function AuditPage() {
                 flexWrap: 'wrap',
                 gap: '12px',
                 padding: '14px 18px',
-                background: '#f6f7f2',
-                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
                 borderRadius: '6px',
+                color: 'var(--text)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 {renderHandoffBadge('Status unavailable')}
-                <span className="small text-muted">
+                <span className="small text-muted" style={{ color: 'var(--text-muted)' }}>
                   {error
                     ? 'Status unavailable: Could not reach telemetry database.'
                     : 'Status unavailable: No sessions recorded yet. Complete a typing lab to start monitoring.'}
@@ -449,10 +450,10 @@ export default function AuditPage() {
                   <div
                     key={account.userId}
                     style={{
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '6px',
-                      background: isSelected ? 'var(--accent-light, #f0f4ea)' : '#fafbfa',
-                      padding: '14px 16px',
+                      border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      borderRadius: '8px',
+                      background: isSelected ? 'var(--accent-light)' : 'var(--bg)',
+                      padding: '16px 20px',
                       transition: 'background 0.15s, border-color 0.15s',
                       cursor: 'pointer',
                     }}
@@ -472,7 +473,7 @@ export default function AuditPage() {
                     >
                       {/* Left: Account ID & Badge */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }} className="mono-id">
+                        <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text)' }} className="mono-id">
                           {shortUser}
                         </span>
                         {renderHandoffBadge(account.status)}
@@ -486,7 +487,7 @@ export default function AuditPage() {
                           setActiveReasonAccount(isSelected ? null : account.userId);
                         }}
                       >
-                        <span className="small text-muted" style={{ fontSize: '0.72rem' }}>
+                        <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                           Last {account.timeline.length} verdicts:
                         </span>
                         <div
@@ -494,7 +495,7 @@ export default function AuditPage() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '6px',
-                            padding: '4px 8px',
+                            padding: '6px 10px',
                             background: 'var(--surface)',
                             border: '1px solid var(--border)',
                             borderRadius: '16px',
@@ -502,7 +503,7 @@ export default function AuditPage() {
                           aria-label="Timeline of last 10 session verdicts"
                         >
                           {account.timeline.length === 0 && (
-                            <span className="small text-muted" style={{ fontSize: '0.7rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                               No history
                             </span>
                           )}
@@ -517,18 +518,18 @@ export default function AuditPage() {
                                 setActiveReasonAccount(account.userId);
                               }}
                               style={{
-                                width: '11px',
-                                height: '11px',
+                                width: '12px',
+                                height: '12px',
                                 borderRadius: '50%',
                                 background: dot.color,
-                                border: '1px solid rgba(0,0,0,0.15)',
+                                border: '1px solid rgba(255,255,255,0.18)',
                                 padding: 0,
                                 cursor: 'pointer',
                                 outline: 'none',
                                 transition: 'transform 0.12s',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'scale(1.35)';
+                                e.currentTarget.style.transform = 'scale(1.4)';
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.transform = 'scale(1)';
@@ -539,25 +540,25 @@ export default function AuditPage() {
                       </div>
                     </div>
 
-                    {/* One-line reason banner (always visible or highlighted on click/tap) */}
+                    {/* One-line reason banner */}
                     <div
                       style={{
-                        marginTop: '10px',
-                        paddingTop: '8px',
+                        marginTop: '12px',
+                        paddingTop: '10px',
                         borderTop: '1px solid var(--border-subtle)',
-                        fontSize: '0.78rem',
-                        color: isSelected ? 'var(--text)' : 'var(--text-muted)',
+                        fontSize: '0.82rem',
+                        color: 'var(--text)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        gap: '8px',
+                        gap: '12px',
                       }}
                     >
                       <div>
-                        <strong style={{ fontWeight: 550, color: 'var(--text)' }}>Diagnosis: </strong>
-                        <span>{account.reason}</span>
+                        <strong style={{ fontWeight: 600, color: 'var(--text)', marginRight: '6px' }}>Diagnosis:</strong>
+                        <span style={{ color: 'var(--text)', opacity: 0.9 }}>{account.reason}</span>
                       </div>
-                      <span className="small text-muted" style={{ fontSize: '0.7rem', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--accent)', flexShrink: 0 }}>
                         {isSelected ? 'Tap to collapse' : 'Tap to expand'}
                       </span>
                     </div>
