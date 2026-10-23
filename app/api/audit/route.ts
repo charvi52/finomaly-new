@@ -3,11 +3,11 @@ import { getSupabaseServerClient } from '@/lib/supabase';
 import {
   checkRateLimit,
   validateApiAuth,
+  validateAdminAuth,
   getCorsHeaders,
   handleCorsPreflight,
 } from '@/lib/apiSecurity';
 import { sanitizeUserId } from '@/lib/security';
-import { detectHandoff, HandoffRecord } from '@/lib/handoff';
 
 export const runtime = 'nodejs';
 
@@ -53,12 +53,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return NextResponse.json(
-      {
-        logs: [],
-        handoffStatus: null,
-        handoffReason: null,
-        error: 'Database service not configured',
-      },
+      { error: 'Database service not configured' },
       { status: 503, headers: baseHeaders }
     );
   }
@@ -68,7 +63,7 @@ export async function GET(req: NextRequest) {
       .from('audit_logs')
       .select('id, user_id, score, band, features, flags, created_at')
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(30);
 
     if (!isGlobalQuery && cleanUserId) {
       query = query.eq('user_id', cleanUserId);
@@ -77,117 +72,20 @@ export async function GET(req: NextRequest) {
     const { data: logs, error } = await query;
 
     if (error) {
+      // Do not expose raw database error details to client in production
       return NextResponse.json(
-        {
-          logs: [],
-          handoffStatus: null,
-          handoffReason: null,
-          error: 'Failed to retrieve audit records',
-        },
+        { error: 'Failed to retrieve audit records' },
         { status: 500, headers: baseHeaders }
       );
     }
 
-    const rawLogs = (logs || []) as Array<{
-      id: string;
-      user_id: string;
-      score: number;
-      band: string;
-      features: unknown;
-      flags: { pasteDetected?: boolean; botSuspected?: boolean; zeroVariance?: boolean } | null;
-      created_at: string;
-    }>;
-
-    // Group logs by user_id
-    const logsByUser = new Map<string, typeof rawLogs>();
-    for (const log of rawLogs) {
-      const uid = log.user_id || 'unknown';
-      const existing = logsByUser.get(uid);
-      if (existing) {
-        existing.push(log);
-      } else {
-        logsByUser.set(uid, [log]);
-      }
-    }
-
-    const handoffByAccount: Record<
-      string,
-      { handoffStatus: string | null; handoffReason: string | null }
-    > = {};
-
-    logsByUser.forEach((userLogs, uid) => {
-      try {
-        // Sort each account's records by timestamp (oldest -> newest) before calling detectHandoff
-        const sortedRecords = [...userLogs].sort((a, b) => {
-          const tA = new Date(a.created_at).getTime() || 0;
-          const tB = new Date(b.created_at).getTime() || 0;
-          return tA - tB;
-        });
-
-        const handoffInputs: HandoffRecord[] = sortedRecords.map((r) => {
-          let verdict = 'Match';
-          const b = (r.band || '').toLowerCase();
-          if (b === 'anomaly') verdict = 'Hard Flag';
-          else if (b === 'rushed') verdict = 'Soft Flag';
-          else if (b === 'match') verdict = 'Match';
-          else verdict = r.band || 'Match';
-
-          return {
-            verdict,
-            band: r.band,
-            score: r.score,
-            timestamp: r.created_at,
-            created_at: r.created_at,
-            flags: r.flags || undefined,
-            pasteDetected: Boolean(r.flags?.pasteDetected),
-            botSuspected: Boolean(r.flags?.botSuspected),
-            zeroVariance: Boolean(r.flags?.zeroVariance),
-          };
-        });
-
-        const result = detectHandoff(handoffInputs);
-        handoffByAccount[uid] = {
-          handoffStatus: result.status,
-          handoffReason: result.reason,
-        };
-      } catch {
-        // Catch errors per account (handoffStatus: null) so one bad row never breaks the response
-        handoffByAccount[uid] = {
-          handoffStatus: null,
-          handoffReason: null,
-        };
-      }
-    });
-
-    // Extend existing logs with handoffStatus and handoffReason per record
-    const enrichedLogs = rawLogs.map((log) => {
-      const uid = log.user_id || 'unknown';
-      const acct = handoffByAccount[uid];
-      return {
-        ...log,
-        handoffStatus: acct ? acct.handoffStatus : null,
-        handoffReason: acct ? acct.handoffReason : null,
-      };
-    });
-
     return NextResponse.json(
-      {
-        logs: enrichedLogs,
-        handoffByAccount,
-        handoffs: handoffByAccount,
-        handoffStatus: cleanUserId ? (handoffByAccount[cleanUserId]?.handoffStatus ?? null) : null,
-        handoffReason: cleanUserId ? (handoffByAccount[cleanUserId]?.handoffReason ?? null) : null,
-      },
+      { logs: logs || [] },
       { status: 200, headers: baseHeaders }
     );
   } catch {
     return NextResponse.json(
-      {
-        logs: [],
-        handoffStatus: null,
-        handoffReason: null,
-        error: 'Internal server error retrieving audit records',
-      },
+      { error: 'Internal server error retrieving audit records' },
       { status: 500, headers: baseHeaders }
     );
   }
