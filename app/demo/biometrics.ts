@@ -142,9 +142,18 @@ export function extractRawVector(params: {
   charCount: number;
 }): RawVector {
   const { keystrokes, flights, totalDurationMs, charCount } = params;
-  const holdTimes = keystrokes.map(k => k.holdTime);
-  const flightTimes = flights.map(f => f.flightTime);
-  const minutes = totalDurationMs / 60_000;
+  const holdTimes = keystrokes.map(k => Math.max(1, k.holdTime));
+  const flightTimes = flights.map(f => Math.max(1, f.flightTime));
+
+  // Cap idle thinking pauses at 2000ms to preserve active motor typing speed
+  let activeMs = totalDurationMs;
+  if (flights.length > 0 && keystrokes.length > 0) {
+    const cappedFlights = flights.reduce((sum, f) => sum + Math.min(2000, Math.max(1, f.flightTime)), 0);
+    const holdSum = holdTimes.reduce((sum, h) => sum + h, 0);
+    activeMs = Math.min(totalDurationMs, Math.max(1000, cappedFlights + holdSum));
+  }
+
+  const minutes = activeMs / 60_000;
   const wpm = minutes > 0 ? charCount / 5 / minutes : 0;
 
   return {
@@ -320,7 +329,7 @@ export function estimateAccuracy(params: {
   holdTimes: number[];
 }): number {
   const { wordCount: wc, flightTimes, holdTimes } = params;
-  if (wc < 50) return 0;
+  if (wc < 12) return 0;
 
   // Coefficient of variation for flight times (rhythm consistency)
   const allIntervals = [...flightTimes, ...holdTimes];
@@ -328,9 +337,8 @@ export function estimateAccuracy(params: {
   const sd = stdDev(allIntervals);
   const cv = m > 0 ? sd / m : 1; // 0 = perfectly consistent, 1+ = very erratic
 
-  // Base accuracy from word count alone (logarithmic growth)
-  // At 50 words → ~45%, at 100 → ~65%, at 200 → ~85%, at 300 → ~95%
-  const wordScore = clamp01(Math.log(wc / 50 + 1) / Math.log(7)); // log scale
+  // Base accuracy from word count (calibrated for 20-35 word passages)
+  const wordScore = clamp01(Math.log(wc / 12 + 1) / Math.log(3.5));
 
   // Consistency bonus: lower CV = higher accuracy from fewer words
   // CV ≈ 0.3–0.5 is normal for humans. Above 0.8 is very erratic.
@@ -339,7 +347,7 @@ export function estimateAccuracy(params: {
   // Blend: consistent typists get accuracy from word count faster
   // Erratic typists need more words before the average stabilises
   const consistentScore = wordScore * (0.7 + 0.3 * consistencyFactor);
-  const accuracyRaw = 40 + consistentScore * 57; // range 40–97%
+  const accuracyRaw = 48 + consistentScore * 49; // range 48–97%
 
   return Math.min(97, Math.round(accuracyRaw));
 }

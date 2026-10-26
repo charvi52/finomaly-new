@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   KeystrokeEvent,
   NormVector,
@@ -184,11 +184,48 @@ export default function ResultsView({
     { l: 'FLIGHT TIME', v: Math.round(liveVector.avgFlightTime),  b: Math.round(baselineRaw.avgFlightTime),  u: 'ms' },
   ];
 
+  const diagnosticInsights = useMemo(() => {
+    const list: { text: string; status: 'ok' | 'warn' | 'anomaly' }[] = [];
+    const wpmDelta = featureDeltas.find(d => d.name === 'WPM');
+    const holdDelta = featureDeltas.find(d => d.name === 'Avg Hold Time');
+    const flightDelta = featureDeltas.find(d => d.name === 'Avg Flight Time');
+
+    if (wpmDelta) {
+      const diff = Math.round(wpmDelta.rawLive - wpmDelta.rawBaseline);
+      const absDiff = Math.abs(diff);
+      if (Math.abs(wpmDelta.delta) < 0.12) {
+        list.push({ text: `Typing speed (${Math.round(wpmDelta.rawLive)} WPM) closely matched your enrolled baseline.`, status: 'ok' });
+      } else if (diff > 0) {
+        list.push({ text: `Typing speed was ${absDiff} WPM faster than baseline.`, status: Math.abs(wpmDelta.delta) > 0.25 ? 'anomaly' : 'warn' });
+      } else {
+        list.push({ text: `Typing speed was ${absDiff} WPM slower than baseline.`, status: Math.abs(wpmDelta.delta) > 0.25 ? 'anomaly' : 'warn' });
+      }
+    }
+
+    if (holdDelta) {
+      if (Math.abs(holdDelta.delta) < 0.15) {
+        list.push({ text: `Key hold duration (${Math.round(holdDelta.rawLive)}ms) aligned with your motor memory.`, status: 'ok' });
+      } else {
+        list.push({ text: `Key hold duration (${Math.round(holdDelta.rawLive)}ms) diverged from normal habits (${Math.round(holdDelta.rawBaseline)}ms).`, status: Math.abs(holdDelta.delta) > 0.25 ? 'anomaly' : 'warn' });
+      }
+    }
+
+    if (flightDelta) {
+      if (Math.abs(flightDelta.delta) < 0.15) {
+        list.push({ text: `Inter-key transition timing matched your enrolled flight cadence.`, status: 'ok' });
+      } else {
+        list.push({ text: `Inter-key flight gaps showed noticeable timing variation.`, status: Math.abs(flightDelta.delta) > 0.25 ? 'anomaly' : 'warn' });
+      }
+    }
+
+    return list;
+  }, [featureDeltas]);
+
   const TABS: { id: Tab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'features', label: 'Features' },
     { id: 'math',     label: 'Math' },
-    { id: 'ai',       label: 'Model AI' },
+    { id: 'ai',       label: 'Decomposition' },
   ];
 
   return (
@@ -274,6 +311,29 @@ export default function ResultsView({
               })}
             </div>
 
+            {/* Behavioral Insights */}
+            {diagnosticInsights.length > 0 && (
+              <div style={{
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '0.875rem 1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem',
+              }}>
+                <p style={{ margin: 0, fontSize: '0.65rem', fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Behavioral Insights
+                </p>
+                {diagnosticInsights.map((d, i) => (
+                  <p key={i} style={{ margin: 0, fontSize: '0.78rem', color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: d.status === 'ok' ? '#00f5d4' : d.status === 'warn' ? '#ffa500' : '#ff4444' }}>•</span>
+                    <span>{d.text}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+
             {/* Keystroke chart */}
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem' }}>
               <HoldTimeChart keystrokes={liveKeystrokes} avgBase={baselineRaw.avgHoldTime} />
@@ -351,22 +411,22 @@ export default function ResultsView({
           </div>
         )}
 
-        {/* ── AI ── */}
+        {/* ── DECOMPOSITION ── */}
         {tab === 'ai' && (
           <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div>
               <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', marginBottom: '0.625rem' }}>
-                Autoencoder Reconstruction Error
+                Feature Loss & Divergence Analysis
               </p>
               <p style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginBottom: '0.875rem' }}>
-                Features with high reconstruction loss drove the anomaly signal. The autoencoder was trained on your baseline session.
+                Individual features evaluated against your calibrated baseline centroid. High divergence indicates departure from typical motor habits.
               </p>
               {featureDeltas.map(fd => (
                 <div key={fd.name} style={{ marginBottom: '0.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                     <span style={{ fontSize: '0.78rem', color: fd.isAnomaly ? '#ff6b35' : 'var(--foreground)' }}>{fd.name}</span>
                     <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem', color: fd.isAnomaly ? '#ff6b35' : 'var(--muted-foreground)' }}>
-                      {fd.isAnomaly ? 'HIGH LOSS' : 'LOW LOSS'} — {(100 * Math.abs(fd.delta)).toFixed(1)}%
+                      {fd.isAnomaly ? 'DEVIATION' : 'NOMINAL'} — {(100 * Math.abs(fd.delta)).toFixed(1)}%
                     </span>
                   </div>
                   <div className="feature-bar-track" style={{ height: 9 }}>
@@ -378,10 +438,10 @@ export default function ResultsView({
 
             <div>
               <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', marginBottom: '0.625rem' }}>
-                GNN Neighbor Context
+                Multi-Session Centroid Alignment
               </p>
               <p style={{ fontSize: '0.78rem', color: 'var(--muted-foreground)', marginBottom: '0.625rem' }}>
-                Each baseline session (S1–S{baselineSessions.length}) is a trusted node. Edge weight = similarity to current session.
+                Each baseline session (S1–S{baselineSessions.length}) represents an enrolled reference pass. Edge alignment indicates similarity across sessions.
               </p>
               <GNNRadar scores={perSession} />
               <div className="math-block" style={{ marginTop: '0.625rem' }}>

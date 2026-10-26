@@ -119,12 +119,12 @@ export default function BaselineSession({ onComplete }: Props) {
     if (!startTimeRef.current) startTimeRef.current = now;
     downMap.current.set(key, now);
 
-    // Flight time: gap between last key-up and this key-down
+    // Flight time: gap between last key-up and this key-down (clamped for key rollover)
     if (lastUpTimeRef.current !== null && lastKeyRef.current !== null) {
       flightsRef.current.push({
         fromKey: lastKeyRef.current,
         toKey: key,
-        flightTime: now - lastUpTimeRef.current,
+        flightTime: Math.max(1, now - lastUpTimeRef.current),
       });
     }
   }, []);
@@ -135,7 +135,7 @@ export default function BaselineSession({ onComplete }: Props) {
     const now = performance.now();
     const downTime = downMap.current.get(key);
     if (downTime !== undefined) {
-      keystrokesRef.current.push({ key, downTime, upTime: now, holdTime: now - downTime });
+      keystrokesRef.current.push({ key, downTime, upTime: now, holdTime: Math.max(1, now - downTime) });
       downMap.current.delete(key);
     }
     lastUpTimeRef.current = now;
