@@ -111,7 +111,7 @@ SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
 
 # API Security
 API_KEY="your-secure-internal-api-key"
-NEXT_PUBLIC_DEMO_KEY="your-secure-internal-api-key"
+ADMIN_API_KEY="your-secure-internal-admin-key"
 ```
 
 ---
@@ -142,6 +142,8 @@ NEXT_PUBLIC_DEMO_KEY="your-secure-internal-api-key"
 
 * **Charvi Naresh**
 * **Vasu Sharma**
+* **Dolsi**
+* **Divyanshi**
 
 ---
 
